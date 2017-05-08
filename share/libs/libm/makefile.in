@@ -1,0 +1,36 @@
+#
+# Init environment 
+# ================
+
+# Source location - Set by configure
+SRCDIR = @srcdir@
+PREFIX = @prefix@
+CONFIG = @config@
+LIBNAME = @libname@.a
+DESTDIR = lib
+
+VPATH = $(SRCDIR)
+
+include $(PREFIX)/../build.def
+
+include $(SRCDIR)/lib.def
+
+INCLUDE = -I$(SRCDIR)
+
+SOURCES  = $(LIBMATH)
+OBJECTS	 = $(patsubst %.c, %.o, $(SOURCES))
+
+##
+## Define one of:
+##
+##	_IEEE_MODE	exception detection IEEE mode
+##	_SVID_MODE	exception detection System V mode
+##	_XOPEN_MODE	exception detection XOPEN mode
+##	_POSIX_MODE	exception detection POSIX mode
+##
+##	_IEEE_LIBM 	no exception detection
+##
+
+DEFINES = -D_POSIX_MODE
+
+include $(SRCDIR)/../make.libs

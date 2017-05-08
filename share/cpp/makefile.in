@@ -1,0 +1,45 @@
+
+SRCDIR = @srcdir@
+PREFIX = @prefix@
+what_confs = @configs@
+
+VPATH = $(SRCDIR)
+
+include $(PREFIX)/../build.def
+
+INCLUDE = -I$(SRCDIR)
+DEFINE  = -DVEXCPP
+
+OBJS = cccp.o cexp.o obstack.o version.o $(ALLOCA)
+
+cpp$(EXE): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS)
+
+all: cpp$(EXE)
+
+cpp$(EXE): $(OBJS) $(MATHOBJS) $(POSIXOBJS)
+
+clean:
+	rm -f $(OBJS) cpp$(EXE)
+
+install: $(addprefix install_, $(what_confs))
+
+install_%:
+	@mkdir -p $(PREFIX)/$*/lib
+	$(INSTALL) -m 755 cpp$(EXE) $(PREFIX)/$*/lib/cpp$(EXE)
+
+.c.o:
+	$(CC) $(CFLAGS) -c $(INCLUDE) $(DEFINE) $<
+
+
+cccp.o: cccp.c config.h pcp.h
+
+cexp.o: cexp.c
+
+obstack.o: obstack.c obstack.h
+
+version.o: version.c
+
+alloca.o: alloca.c
+
+

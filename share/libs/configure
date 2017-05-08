@@ -1,0 +1,124 @@
+#!/bin/sh
+
+set -e
+
+
+# Startup
+# =======
+
+echo
+echo "------------------------------------------------------------------------"
+echo configure `pwd`
+echo
+
+
+# Defaults values
+# ===============
+
+srcdir=`dirname $0`
+destdir=`pwd`
+prefix=`pwd`
+libs="libc libm libsocket os20"
+
+configs=
+
+# Process args
+# ============
+
+all_arg=$*
+
+args=
+
+while :
+do
+
+# no args
+	case $# in
+	0)
+		break
+		;;
+	esac
+
+# get first arg and shuffle
+	option=$1
+	shift
+
+# make all options have two hyphens
+	orig_option=$option
+	case $option in
+		--*) ;;
+		-*) option=-$option ;;
+	esac
+
+# split the option to get its argument
+	case $option in
+	--*=*)
+		optarg=`echo $option | sed -e 's/^[^=]*=//'`
+		;;
+	esac
+
+# process the options
+	case $option in
+
+		--srcdir*)
+			srcdir=$optarg
+			;;
+
+		--destdir*)
+			destdir=$optarg
+			;;
+
+		--prefix*)
+			prefix=$optarg
+			;;
+
+		--configs*)
+			configs=$optarg
+			;;
+		--libs*)
+			libs="$optarg"
+			;;
+		*)
+			args="$args $option"
+			;;
+	esac
+
+done
+
+recurse_dir="$libs"
+
+# Process makefile.in
+# ===================
+
+echo "### Generated automatically from makefile.in by configure." \
+     > $destdir/makefile
+
+prefix=`cd $prefix ; pwd`
+
+cat << EOF > sedscript  
+    s?@srcdir@?$srcdir?g
+    s?@prefix@?$prefix?g
+    s?@configs@?$configs?g
+    s?@libs@?$libs?g
+EOF
+sed -f sedscript $srcdir/makefile.in >> $destdir/makefile  
+rm -f sedscript  
+
+echo $0 $all_arg > $destdir/config.status
+chmod +x $destdir/config.status
+
+# Recursive configure
+# ===================
+
+for d in $recurse_dir ; do
+  for t in $configs ; do
+    mkdir -p $d/$t
+    ( cd $d/$t ; 			\
+      $srcdir/$d/configure  		\
+          --srcdir=$srcdir/$d  		\
+	  --destdir=$destdir/$d/$t  	\
+	  --prefix=$prefix  	        \
+	  --libname=$d			\
+	  --config=$t $args )
+  done
+done

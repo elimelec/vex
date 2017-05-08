@@ -1,0 +1,23 @@
+The VEX C library is derived from "newlib". More information about newlib
+is available at http://sources.redhat.com/newlib/.
+
+Newlib is a C library intended for use on embedded systems. It is a
+conglomeration of several library parts, all under free software licenses
+that make them easily usable on embedded products.
+
+Newlib is only available in source form. It can be compiled for a wide
+array of processors, and will usually work on any architecture with the
+addition of a few low-level routines.
+
+Newlib is maintained by:
+
+Jeff Johnston <jjohnstn@redhat.com> 
+Tom Fitzsimmons <fitzsim@redhat.com>
+
+Contributions Newlib thrives on net contributions from people like
+you. We're looking for contributions of code, bugfixes, optimizations,
+documentation updates, web page improvements, etc. A nice testsuite
+to automate the testing of newlib is also needed. Contributions are
+currently done by posting patches and ideas to newlib@sources.redhat.com;
+check out the mailing list section to find out more.
+

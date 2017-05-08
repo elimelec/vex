@@ -1,0 +1,182 @@
+#!/bin/sh
+
+## Copyright (C) 1995-2005 Hewlett-Packard Company.
+##
+## You can redistribute this file it and/or modify it under the terms
+## of the GNU Library General Public License as published by the Free
+## Software Foundation; either version 2 of the License, or (at your
+## option) any later version.
+##
+## You should have received a copy of the GNU Library General Public
+## License along with the GNU C Library; see the file COPYING.LIB.  If not,
+## write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+## Boston, MA 02111-1307, USA.
+##
+
+## $Id: ld.sh,v 1.6 2009/12/18 11:53:45 frb Exp $
+
+arg0=$0
+bindir=`expr ${arg0-.}'/' : '\(/\)[^/]*/$' \
+         \|  ${arg0-.}'/' : '\(.*[^/]\)//*[^/][^/]*//*$' \
+         \|  .`
+curdir=`pwd`
+case $bindir in
+/*)     tmpdir=$bindir ;;
+.)      tmpdir=$curdir ;;
+*)      tmpdir=$curdir/$bindir ;;
+esac
+RELEASE_DIR=`expr ${tmpdir-.}'/' : '\(/\)[^/]*/$' \
+              \|  ${tmpdir-.}'/' : '\(.*[^/]\)//*[^/][^/]*//*$' \
+              \|  .`
+
+tmp_prob_file=/tmp/csim$$.o
+
+trap "rm -f /tmp/csim$$*; exit 4" 1 2 3 4 6 15
+
+echo_or_exec()
+{
+    if [ $debug -eq 1 ]
+    then
+        case $1 in
+        cd|mv|rm)
+            echo $*
+            echo
+            ;;
+        *)
+            j=1
+            for parm in $*
+            do
+                if   [ $j -eq 1  ]; then echo $parm \\
+                elif [ $j -lt $# ]; then echo "   " $parm \\
+                else                     echo "   " $parm
+                fi
+                j=`expr $j + 1`
+            done
+            echo
+            ;;
+        esac
+    fi
+
+    if [ $noexec -eq 0 ]
+    then
+        $*
+    fi
+}
+
+wraplist="\
+ -Wl,--wrap,bcmp \
+ -Wl,--wrap,bcopy \
+ -Wl,--wrap,bzero \
+ -Wl,--wrap,index \
+ -Wl,--wrap,memchr \
+ -Wl,--wrap,memcmp \
+ -Wl,--wrap,memcpy \
+ -Wl,--wrap,memmove \
+ -Wl,--wrap,memset \
+ -Wl,--wrap,rindex \
+ -Wl,--wrap,strcasecmp \
+ -Wl,--wrap,strcat \
+ -Wl,--wrap,strchr \
+ -Wl,--wrap,strcmp \
+ -Wl,--wrap,strcoll \
+ -Wl,--wrap,strcpy \
+ -Wl,--wrap,strcspn \
+ -Wl,--wrap,strerror \
+ -Wl,--wrap,strlen \
+ -Wl,--wrap,strncasecmp \
+ -Wl,--wrap,strncat \
+ -Wl,--wrap,strncmp \
+ -Wl,--wrap,strncpy \
+ -Wl,--wrap,strpbrk \
+ -Wl,--wrap,strrchr \
+ -Wl,--wrap,strspn \
+ -Wl,--wrap,strstr \
+ -Wl,--wrap,strtok \
+ -Wl,--wrap,strtok_r \
+ -Wl,--wrap,strxfrm \
+ -Wl,--wrap,malloc \
+ -Wl,--wrap,calloc \
+ -Wl,--wrap,free \
+ -Wl,--wrap,realloc \
+"
+
+uname=`uname`
+case $uname in
+    Linux*)
+        mach=`uname -m`
+        libcdir="/lib"
+        if [ `uname -m` = "x86_64" ]; then
+            libcdir="/lib32"
+        fi
+        libc_so=`ls -r $libcdir/libc.so.? | tail --lines=1`
+        cc_exe="gcc -m32"
+        cc_options="-w"
+        ld_exe="gcc -m32 $wraplist $wraplist_mem"
+        ld_sl="$libc_so -ldl"
+        ld_mem=$RELEASE_DIR/lib/libcache.sl
+        ld_endg=""
+        ;;
+    *)
+        echo "Error: unsupported host ($uname)"
+        exit 5 ;;
+esac
+
+debug=0
+noexec=0
+
+ld_cmd=""
+ld_cs=$RELEASE_DIR/lib/ldcs.a
+ld_ifp=$RELEASE_DIR/lib/ldifp.c
+ld_end=
+
+L_lib="-L$RELEASE_DIR/lib"
+
+cc="echo_or_exec $cc_exe"
+rm="echo_or_exec rm"
+
+prob_gen=0
+prob_dir="database.ifprob"
+prob_cmd=""
+
+while [ $# -gt 0 ]
+do
+        case $1 in
+        -v)     shift ;;
+        -lc)    ld_cmd="$ld_cmd $L_lib $1"; L_lib=""; shift ;;
+        -lm)    ld_cmd="$ld_cmd $L_lib $1"; L_lib=""; shift ;;
+        -prob_gen*)
+                prob_gen=1; shift ;;
+        -prob_dir)
+                shift; prob_dir=$1; shift ;;
+        -d_d)   debug=1; shift ;;
+        -d_dn)  debug=1; noexec=1; shift ;;
+        -d_g)   ld_end="$ld_endg"; cc_options="$cc_options -g"; shift ;;
+        -*)     ld_cmd="$ld_cmd $1"; shift ;;
+        *)      ld_cmd="$ld_cmd $1"; shift ;;
+        esac
+done
+
+ld_cmd="$ld_exe $ld_cmd"
+
+if [ $prob_gen -eq 0 ]
+then
+        echo_or_exec $ld_cmd $ld_mem $ld_cs $ld_sl $ld_end
+        exit $?
+fi
+
+if $cc $cc_options \
+        -DLAST_PROB_COUNT=`cat $prob_dir/last_count` \
+        -o $tmp_prob_file \
+        -c $ld_ifp
+then
+        status=$?
+else
+        echo $0: INTERNAL ERROR \($?\)
+        $rm -f $tmp_prob_file
+        exit 4
+fi
+
+echo_or_exec $ld_cmd $tmp_prob_file $ld_mem $ld_cs $ld_sl $ld_end
+$rm -f $tmp_prob_file
+exit $status
+

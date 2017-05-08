@@ -1,0 +1,69 @@
+#
+# definitions 
+# -----------
+
+SRCDIR = @srcdir@
+PREFIX = @prefix@
+
+include $(PREFIX)/../build.def
+
+what = @libs@
+what_conf = @configs@
+
+# build
+# -----
+
+.PHONY: all $(all_what)
+all_what = $(addprefix all_,$(what))
+
+all_%:
+	for c in $(what_conf); do \
+	  $(MAKE) --directory=$*/$$c all; \
+	done
+
+all: $(all_what)
+
+.PHONY: install $(install_what)
+install_what = $(addprefix install_,$(what))
+
+$(PREFIX)/%:
+	@mkdir -p $@
+
+tar_exclude = --exclude="CVS" --exclude="Changes"
+dir_conf = $(addprefix $(PREFIX)/, $(what_conf))
+install_include: $(dir_conf)
+	-@ for lib in $(what); do \
+	       for c in $(dir_conf); do \
+	           if test -d $(SRCDIR)/$$lib/include; then \
+	               echo "Installing $$lib header files in $$c"; \
+	                 $(TAR) $(tar_exclude) -C $(SRCDIR)/$$lib -cf - include \
+	               | $(TAR) -C $$c -xf - 2> /dev/null; \
+		   fi; \
+	           chmod -R +w $$c; \
+	       done; \
+	   done
+
+install_%:
+	for c in $(what_conf); do \
+	  $(MAKE) --directory=$*/$$c install; \
+	done
+
+install: $(install_what)
+
+# cleanup
+# -------
+
+.PHONY: clean $(clean_what)
+clean_what = $(addprefix clean_, $(what))
+clean_%:
+	for c in $(what_conf); do \
+	  $(MAKE) --directory=$*/$$c clean; \
+	done
+
+clean: $(clean_what)
+
+.PHONY: distclean $(distclean_what)
+distclean_what = $(addprefix distclean_, $(what))
+distclean_%:
+	-rm -rf ./$*
+distclean: $(distclean_what)

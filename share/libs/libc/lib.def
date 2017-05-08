@@ -1,0 +1,263 @@
+STDLIB =	   \
+	__adjust.c \
+	__exp10.c  \
+	__ten_mu.c \
+	abort.c    \
+	abs.c      \
+	alloca.c   \
+	assert.c   \
+	atexit.c   \
+	atof.c     \
+	atoff.c    \
+	atoi.c     \
+	atol.c     \
+	bsearch.c  \
+	calloc.c   \
+	callocr.c  \
+	div.c      \
+	dtoa.c     \
+	dtoastub.c \
+	ecvtbuf.c  \
+	efgcvt.c   \
+	environ.c  \
+	eprintf.c  \
+	exit.c     \
+	getenv.c   \
+	getopt.c   \
+	labs.c     \
+	ldiv.c     \
+	malloc.c   \
+	mallocr.c  \
+	mblen.c    \
+	mbstowcs.c \
+	mbtowc.c   \
+	mprec.c    \
+	mstats.c   \
+	putenv.c   \
+	qsort.c    \
+	rand.c     \
+	rand_r.c   \
+	setenv.c   \
+	strdup.c   \
+	strtod.c   \
+	strtol.c   \
+	strtoul.c  \
+	system.c   \
+	wcstombs.c \
+	wctomb.c
+
+CTYPE =		   \
+	_tolower.c \
+	_toupper.c \
+	ctype_.c   \
+	isalnum.c  \
+	isalpha.c  \
+	isascii.c  \
+	iscntrl.c  \
+	isdigit.c  \
+	islower.c  \
+	isprint.c  \
+	ispunct.c  \
+	isspace.c  \
+	isupper.c  \
+	isxdigit.c \
+	toascii.c  \
+	tolower.c  \
+	toupper.c
+
+ERRNO =			\
+	errno.c
+
+LOCALE =		\
+	locale.c
+
+MATH =			\
+	s_copysign.c	\
+	s_finite.c	\
+	s_frexp.c	\
+	s_infconst.c	\
+	s_isinf.c	\
+	s_isnan.c	\
+	s_ldexp.c	\
+	s_modf.c	\
+	s_scalbn.c	\
+	sf_copysign.c	\
+	sf_finite.c	\
+	sf_frexp.c	\
+	sf_isinf.c	\
+	sf_isnan.c	\
+	sf_ldexp.c	\
+	sf_modf.c	\
+	sf_scalbn.c 
+
+MISC = 			\
+	dprintf.c	\
+	ffs.c		\
+	unctrl.c
+
+POSIX =			\
+	alarm.c         \
+        closedir.c	\
+        creat.c		\
+        execl.c		\
+        execle.c	\
+        execlp.c	\
+        execv.c		\
+        execve.c	\
+        execvp.c	\
+        opendir.c	\
+        popen.c		\
+        readdir.c	\
+	readv.c		\
+        rewinddir.c	\
+        scandir.c	\
+        seekdir.c	\
+        telldir.c	\
+	writev.c
+
+REENT =			\
+	fstatr.c	\
+	lseekr.c	\
+	reent.c		\
+	statr.c		\
+	writer.c	\
+	closer.c	\
+	impure.c	\
+	openr.c		\
+	sbrkr.c		\
+	thread.c	\
+	execr.c		\
+	linkr.c		\
+	readr.c		\
+	signalr.c	\
+	timer.c
+
+SIGNAL =		\
+	raise.c		\
+	signal.c
+
+STDIO =			\
+	findfp.c	\
+	fseek.c		\
+	iprintf.c	\
+	rename.c	\
+	tmpnam.c	\
+	clearerr.c	\
+	fiprintf.c	\
+	fsetpos.c	\
+	rewind.c	\
+	ungetc.c	\
+	fclose.c	\
+	flags.c		\
+	ftell.c		\
+	makebuf.c	\
+	rget.c		\
+	vfiprintf.c	\
+	fdopen.c	\
+	fvwrite.c	\
+	mktemp.c	\
+	scanf.c		\
+	vfprintf.c	\
+	feof.c		\
+	fopen.c		\
+	perror.c	\
+	setbuf.c	\
+	vfscanf.c	\
+	ferror.c	\
+	fprintf.c	\
+	fwalk.c		\
+	printf.c	\
+	setvbuf.c	\
+	vprintf.c	\
+	fflush.c	\
+	fputc.c		\
+	fwrite.c	\
+	putc.c		\
+	siprintf.c	\
+	vsprintf.c	\
+	fgetc.c		\
+	fputs.c		\
+	getc.c		\
+	putchar.c	\
+	sprintf.c	\
+	wbuf.c		\
+	fgetpos.c	\
+	fread.c		\
+	getchar.c	\
+	puts.c		\
+	sscanf.c	\
+	wsetup.c	\
+	fgets.c		\
+	freopen.c	\
+	gets.c		\
+	refill.c	\
+	stdio.c		\
+	fileno.c	\
+	fscanf.c	\
+	remove.c	\
+	tmpfile.c
+
+STRING = 		\
+	memcpy.c	\
+	strcmp.c	\
+	strncasecmp.c	\
+	strstr.c	\
+	bcmp.c		\
+	memmove.c	\
+	strcoll.c	\
+	strncat.c	\
+	strtok.c	\
+	bcopy.c		\
+	memset.c	\
+	strcpy.c	\
+	strncmp.c	\
+	strtok_r.c	\
+	bzero.c		\
+	rindex.c	\
+	strcspn.c	\
+	strncpy.c	\
+	strupr.c	\
+	index.c		\
+	strcasecmp.c	\
+	strerror.c	\
+	strpbrk.c	\
+	strxfrm.c	\
+	memchr.c	\
+	strcat.c	\
+	strlen.c	\
+	strrchr.c	\
+	u_strerr.c	\
+	memcmp.c	\
+	strchr.c	\
+	strlwr.c	\
+	strspn.c
+
+TIME = 			\
+	clock.c		\
+	difftime.c	\
+	lcltime.c	\
+	strftime.c	\
+	asctime.c	\
+	ctime.c		\
+	gmtime.c	\
+	lcltime_r.c	\
+	time.c		\
+	asctime_r.c	\
+	ctime_r.c	\
+	gmtime_r.c	\
+	mktime.c
+
+MACHINE =               \
+        vexbcopy.c      \
+        floatlib.c      \
+        divrem.c
+
+KSOURCES =		\
+	start.c		\
+	itimer.c	\
+	exception.c	\
+	mmu.c		\
+	interrupt.c	\
+	iCacheFlush.c	\
+	dCacheFlush.c
+

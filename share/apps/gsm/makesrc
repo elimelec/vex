@@ -1,0 +1,28 @@
+#!/bin/sh
+if [ ! -f en_300724v080001p0.zip ]; then
+    echo "Downloading en_300724v080001p0.zip ..."
+    wget http://WEBAPP.ETSI.ORG/exchangefolder/en_300724v080001p0.zip
+    status=$?
+    if [ $status != 0 ]; then
+        echo ""
+        echo "ERROR: Couldn't wget the ETSI standard. The most likely cause "
+        echo "       is that you are not authenticated on the ETSI website."
+        echo " [1] Open a browser to http://pda.etsi.org/pda"
+        echo " [2] Search for the exact expression 'EN300724 V8.0.1'"
+        echo " [3] Click on 'download' and follow instructions to login/register"
+        echo " [4] Retrieve the file en_300724v080001p0.zip in the current directory"
+        echo ""
+        exit 1
+    fi
+fi
+/bin/rm -rf src
+mkdir src
+cd src
+
+echo "Unzipping en_300724v080001p0.zip..."
+unzip -q -Laa ../en_300724v080001p0.zip
+cp -rf ../new/* .
+
+echo "Patching src..."
+patch -s < ../patch
+

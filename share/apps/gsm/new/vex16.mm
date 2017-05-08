@@ -1,0 +1,9 @@
+RES: IssueWidth 16
+RES: MemLoad 8
+RES: MemStore 8
+RES: MemPft 8
+RES: Alu.0 16
+RES: Mpy.0 8
+RES: CopySrc.0 1
+RES: CopyDst.0 1
+RES: Memory.0 8

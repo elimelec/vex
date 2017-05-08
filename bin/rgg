@@ -1,0 +1,282 @@
+#!/usr/bin/perl 
+##
+## Copyright (C) 1994 - 2005 Hewlett-Packard Company
+##
+## The information and source code contained herein is the exclusive
+## property of Hewlett-Packard Company and may not be reproduced 
+## in whole or in part without explicit written authorization from 
+## the company. See "<vexroot>/LICENSE.txt" for license terms.
+##
+
+##
+## Author: Paolo Faraboschi, HPL
+##
+## $Id: rgg,v 1.6 2007/01/25 09:31:19 frb Exp $
+##
+
+use strict;
+use File::Basename;
+
+if ($#ARGV < 0) {
+    print "Error: not enough arguments\n";
+    usage();
+}
+
+my $bindir = dirname($0);
+my $excl_routine = "-E _linux_start";
+my $exec_name = @ARGV[0];
+my $MINFRAC = 0.001;
+my $GPROF = "gprof";
+my $gmon = "";
+
+shift @ARGV;
+while (@ARGV) {
+    my $arg = @ARGV[0];
+    if ($arg eq "-a") {
+        $excl_routine = "";
+    }
+    elsif ($arg =~ /^-[eEfF]$/) {
+        $excl_routine .= " @ARGV[1]";
+        shift @ARGV;
+    }
+    elsif ($arg eq "-m") {
+        $MINFRAC = @ARGV[1];
+        shift @ARGV;
+    }
+    elsif ($arg eq "-g") {
+        $gmon = @ARGV[1];
+        shift @ARGV;
+    }
+    else {
+        usage();
+    }
+    shift @ARGV;
+}
+
+if ($gmon eq "") {
+    if ( -e "gmon.out" ) { $gmon = "gmon.out"; }
+    if ( -e "gmon.sum" ) { $gmon = "gmon.sum"; }
+    if ( $gmon eq "" ) {
+	    print "Can't find gmon.out or gmon.sum\n";
+	    exit(1);
+    }
+}
+else {
+    if (! -e "$gmon") {
+        print "Can't find $gmon\n";
+        exit(1);
+    }
+}
+
+# print "$GPROF -b $excl_routine $exec_name $gmon\n";
+system("$GPROF -b $excl_routine $exec_name $gmon > gcall.log");
+open(FHIN, "gcall.log");
+open(FHOUT, ">gflat.log");
+my $inCallGraph = 0;
+my $totime = 0;
+while (<FHIN>) {
+    my $line = $_;
+    chomp;
+    $line =~ s/.<.*>/_<cycle>/;
+    if ($line =~ /^granularity:.* ([0-9.]+) seconds/) {
+        $inCallGraph = 1;
+        $totime = $1;
+    }
+    elsif ($inCallGraph && $line =~ /^\[.*\]/) {
+        if($totime == 0.0 || $totime eq "") {
+	    print "ERROR: Total Time is 0\n";
+            exit(1);
+        }
+        ## index % time    self  children    called     name
+        ## [2]     99.8    0.00    0.56       1         main [2]
+        my ($index, $time, $self, $children, $called, $name) = split(/[\s]+/, $line);
+        printf FHOUT "%8.1f ", $time;
+        printf FHOUT "%8.1f ", 100.0*$self/$totime;
+        printf FHOUT "%8.1f ", 100.0*$children/$totime;
+        printf FHOUT "%12d ", $called;
+        printf FHOUT "%s\n", $name;
+    }
+    elsif ($inCallGraph && $line =~ /^index/) {
+        $inCallGraph = 0;
+    }
+}
+close FHIN;
+close FHOUT;
+
+system("sort -r -n -k 1 gflat.log > gflat_self.log");
+gp2vc("gcall.log", "gcall.vcg", $MINFRAC, $exec_name, $totime);
+system("$bindir/xvcg -silent -d0 gcall.vcg");
+system ("rm -f gcall.vcg gcall.log");
+
+exit(0);
+
+############################################################################################
+
+sub usage {
+   print "Usage: rgg vexBinary [-g gmonfile] [-a] {[-e|-E excl_routine]} {[-f|-F incl_routine]}\n";
+   print "       -g file: specify gprof data file (default is gmon.out/gmon.sum)\n";
+   print "       -a : profile all routines\n";
+   print "       -e routine: exclude routine from profile (see gprof man)\n";
+   print "       -E routine: exclude routine and time from profile (see gprof man)\n";
+   print "       -f routine: include only routine to profile (see gprof man)\n";
+   print "       -F routine: include only routine to profile and time (see gprof man)\n";
+   print "       -m frac:   minimum fraction [0.01]\n";
+   exit(1);
+}
+
+sub gp2vc {
+    my $infile = shift;
+    my $outfile = shift;
+    my $minfrac = shift;
+    my $progname = shift;
+    my $TOTIME = shift;
+    open(FHIN, "$infile");
+    open(FHOUT, ">$outfile");
+
+    my $nn = 0;
+    my $Ne = 0;
+    my $descend = 0;
+    my $node;
+    my %label;
+    my %Tself;
+    my %Ttot;
+    my %used;
+    my %source;
+    my %target;
+    my %edgelabel;
+    my %edgelabel2;
+    while (<FHIN>) {
+        chomp;
+        my $line = $_;
+        if (s/^\[([0-9]+)\][\s]+(.*)[\s]+\[([0-9]+)\]/\2/) {
+            ##    index % time    self  children    called     name
+            ##--> [2]     99.8    0.00    0.56       1         main [2]
+            ##                    0.00    0.00       2/2       read_markers [46]
+            ##    -----------------------------------------------
+            my $index1 = $1;
+            my $data = $2;
+            my $index2 = $3;
+            my ($time, $self, $children, $called, $name) = split(' ',$data);
+            if ($index1 != $index2) {
+                print "Warning: conflicting index '$line'\n";
+            }
+	    $node = $index1;
+	    $label{$node} = $name;
+	    $Tself{$node} = $self;
+	    $Ttot{$node} = $self + $children;
+	    if (frac($Ttot{$node}) >= $minfrac) {
+	        $used{$node} = 1;
+	    }
+	    if ($node > $nn) {
+	        $nn = $node;
+	    }
+	    $descend = 1;
+        }
+        elsif ($descend && (s/^[\s]+(.*)[\s]+\[([0-9]+)\]/\1/)) {
+            ##    index % time    self  children    called     name
+            ##    [2]     99.8    0.00    0.56       1         main [2]
+            ##-->                 0.00    0.00       2/2       read_markers [46]
+            ##    -----------------------------------------------
+            my $data = $1;
+            my $index = $2;
+            my ($self, $children, $called, $name) = split(' ', $data);
+            if ($name ne "") {
+                my ($call1, $call2) = split(/[\/\+]/, $called);
+                # print "edge: $node -> $index\tself=$self children=$children [$data]\n";
+	        $source{$Ne} = $node;
+	        $target{$Ne} = $index;
+	        $edgelabel{$Ne} = $self + $children;
+	        $edgelabel2{$Ne} = $call1;
+	        $Ne++;
+            }
+        }
+        elsif (/^--/) {
+	    $descend = 0;
+        }
+    }
+
+    my $pile = 8;
+    my $todo = 1;
+    while ($todo && $pile > 0) {
+        my $todo = 0;
+        for (my $i = 0; $i < $Ne; ++$i) {
+            $Ttot{$target{$i}} = max($Ttot{$target{$i}}, $edgelabel{$i});
+            if (frac($Ttot{$target{$i}}) >= $minfrac) {
+	        $used{$target{$i}} = 1;
+                $todo = 1;
+            }
+            if ($used{$target{$i}} && ($Ttot{$source{$i}} > $Ttot{$target{$i}} / 10)) {
+	        $used{$source{$i}} = 1;
+                $todo = 1;
+            }
+            $pile--;
+        }
+    }
+
+    printf FHOUT (("graph: { title: \"CALL GRAPH\"\n"));
+    printf FHOUT (("\t yspace: 40\n"));
+    printf FHOUT (("\t layoutalgorithm: minbackward\n"));
+    printf FHOUT (("\t display_edge_labels: yes\n"));
+    printf FHOUT (("\t near_edges: no\n"));
+    printf FHOUT (("\t port_sharing: no\n"));
+
+    printf FHOUT (("node: { title: \"legend\"\n"));
+    printf FHOUT "\t label: \"\n\nProgram:%s\nExec.time: %g sec\n\n\"\n", $progname, $totime;
+    printf FHOUT (("\t vertical_order:0 horizontal_order:0\n"));
+    printf FHOUT (("\t bordercolor: white\n"));
+    printf FHOUT (("\t width: 300\n"));
+    printf FHOUT (("\t textmode: left_justify\n"));
+    printf FHOUT (("}\n"));
+
+    for (my $i = 0; $i <= $nn; $i++) {
+        if ($used{$i}) {
+	    printf FHOUT (("\tnode: {"));
+	    printf FHOUT " title: \"%s\"", $i;
+	    printf FHOUT " label: \"%s\\ns=%.1f%% t=%.1f%%\"", 
+	    $label{$i}, pct($Tself{$i}), pct($Ttot{$i});
+    
+	    my $tmp = pct($Tself{$i});
+	    if ($tmp >= 1.0 && $tmp < 5.0) {
+	        printf FHOUT ((' color: lightyellow'));
+	    }
+	    if ($tmp >= 5.0 && $tmp < 10.0) {
+	        printf FHOUT ((' color: yellow'));
+	    }
+	    if ($tmp >= 10.0 && $tmp < 15.0) {
+	        printf FHOUT ((' color: lightgreen'));
+	    }
+	    if ($tmp >= 15.0 && $tmp < 20.0) {
+	        printf FHOUT ((' color: green'));
+	    }
+	    if ($tmp >= 20.0 && $tmp < 25.0) {
+	        printf FHOUT ((' color: lightred'));
+	    }
+	    if ($tmp >= 25.0 && $tmp < 30.0) {
+	        printf FHOUT ((' color: red'));
+	    }
+	    if ($tmp >= 30.0 && $tmp < 35.0) {
+	        printf FHOUT ((' color: lightblue'));
+	    }
+	    if ($tmp >= 35.0) {
+	        printf FHOUT ((' color: blue'));
+	    }
+	    printf FHOUT (("}\n"));
+        }
+    }
+
+    for (my $i = 0; $i < $Ne; ++$i) {
+        if ($used{$source{$i}} && $used{$target{$i}}) {
+	    printf FHOUT "\tedge:{ sourcename: \"%s\" targetname: \"%s\" label: \"%.1f%% %s\" thickness: %d }\n",
+	        $source{$i}, $target{$i}, 
+                pct($edgelabel{$i}), $edgelabel2{$i},
+	        pct($edgelabel{$i}) / 5;
+        }
+    }
+    printf FHOUT (("}\n"));
+    close FHIN;
+    close FHOUT;
+}
+    
+sub pct  { my($X) = @_; return ($X * 100.0) / $totime; }
+sub frac { my($X) = @_; return $X / $totime; }
+sub max  { my($X, $Y) = @_; return ($X > $Y) ? $X : $Y; }

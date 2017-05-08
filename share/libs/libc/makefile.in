@@ -1,0 +1,160 @@
+#
+# Init environment 
+# ================
+
+# Source location - Set by configure
+SRCDIR = @srcdir@
+PREFIX = @prefix@
+CONFIG = @config@
+
+VPATH = $(SRCDIR)/ctype:$(SRCDIR)/errno:$(SRCDIR)/locale:$(SRCDIR)/machine:\
+        $(SRCDIR)/misc:$(SRCDIR)/posix:$(SRCDIR)/reent:$(SRCDIR)/signal:$(SRCDIR)/stdio:\
+        $(SRCDIR)/stdlib:$(SRCDIR)/string:$(SRCDIR)/syscalls:$(SRCDIR)/time:$(SRCDIR)/unix:\
+        $(SRCDIR)/math:$(SRCDIR)/cs_stubs:$(SRCDIR)/gmon
+
+include $(PREFIX)/../build.def
+
+include $(SRCDIR)/lib.def
+
+SOURCES = $(STDLIB) $(CTYPE) $(ERRNO) $(LOCALE) $(MATH) $(MISC) $(REENT) \
+          $(POSIX) $(SIGNAL) $(STDIO) $(STRING) $(TIME) $(MACHINE)
+
+OBJECTS	= $(patsubst %.c, %.o, $(SOURCES))
+KOBJECTS = $(patsubst %.c, %.o, $(KSOURCES))
+
+DIVOBJS = div.o ldiv.o
+
+INTRINOBJS = lxbcopy.o floatlib.o
+INTRINDIVOBJS = divrem.o
+
+INCLUDE = -I$(SRCDIR)/stdio -I$(SRCDIR)/stdlib -I$(SRCDIR)/math -I$(SRCDIR)/gmon
+
+############################################################################
+### CS Build (only native currently supported)
+###
+ifeq ("$(SIM)","cs")
+    SYSCALLS = cs_fstat.o cs_link.o cs_open.o cs_read.o cs_time.o cs_write.o
+
+    ifeq ("$(host)", "hppa1.1-hp-hpux10.20")
+        DEFINES += -DHAVE_OPENDIR -DHAVE_GETTIMEOFDAY
+        OBJECTS += cs_start.o
+    endif
+    ifeq ("$(host)", "i686-pc-cygwin32")
+        DEFINES += -DHAVE_OPENDIR -DHAVE_GETTIMEOFDAY -DSIGNAL_PROVIDED \
+	           -DMALLOC_PROVIDED -DCALLOC_PROVIDED
+        OBJECTS += cs_start.o $(SYSCALLS)
+    endif
+    ifeq ("$(host)", "sparc-sun-solaris2.5.1")
+        DEFINES += -DHAVE_OPENDIR -DHAVE_GETTIMEOFDAY -DSIGNAL_PROVIDED
+        OBJECTS += cs_start.o $(SYSCALLS)
+    endif
+    ifeq ("$(host)", "i686-pc-linux-gnu")
+        DEFINES += -DHAVE_OPENDIR -DHAVE_GETTIMEOFDAY -DSIGNAL_PROVIDED
+        OBJECTS += $(SYSCALLS)
+    endif
+    DEFINES += -DCS_SIM
+    CFLAGS_FOR_TARGET += -mas_t -mas_O2
+
+    .PHONY: all
+    all: libc.a
+
+    libc.a: $(OBJECTS)
+	$(AR) $(ARFLAGS) $(@) $(OBJECTS)
+	$(RANLIB) $(@)
+
+    install: libc.a
+	@mkdir -p $(PREFIX)/$(CONFIG)/lib
+	$(INSTALL) -m 644 libc.a $(PREFIX)/$(CONFIG)/lib
+else
+############################################################################
+### Other Builds (ISS, hardware)
+###
+    SYSCALLS = fork.o inbyte.o outbyte.o wait.o _execve.o utime.o \
+	       _nc_chmod.o _nc_fstat.o _nc_gettimeofday.o _nc_link.o \
+	       _nc_open.o _nc_read.o _nc_stat.o _nc_times.o _nc_unlink.o \
+	       _nc_write.o _nc_util.o
+
+    OBJECTS += setjmp.o sigset.o boot_rom.o debug_interrupt_handler.o 
+
+    KERNEL_OBJS = syskernel.o $(KOBJECTS) 
+
+    DEFINES += -DHAVE_GETTIMEOFDAY -DTHREAD_SAFE -DSIGNAL_PROVIDED
+    INCLUDE += -I../../../gnu/include -I$(SRCDIR)/../../gnu/include
+    GDBINCLUDE = -I../../../gnu/gdb
+
+    .PHONY: all
+    all: libc.a boot_rom crt0.o lx_debug.o
+
+    install: libc.a crt0.o lx_debug.o
+	@mkdir -p $(PREFIX)/$(CONFIG)/lib
+	$(INSTALL) -m 644 crt0.o $(PREFIX)/$(CONFIG)/lib
+	$(INSTALL) -m 644 libc.a $(PREFIX)/$(CONFIG)/lib
+	$(INSTALL) -m 644 lx_debug.o $(PREFIX)/$(CONFIG)/lib
+
+    ifeq  ("$(build)", "$(host)")
+        ###
+        ### Normal Cross Build
+        ###
+        libc.a: $(OBJECTS) $(SYSCALLS)
+		$(AR_FOR_TARGET) $(ARFLAGS) $(@) $(OBJECTS) $(SYSCALLS)
+		$(RANLIB_FOR_TARGET) $(@)
+
+        boot_rom: boot_rom.o
+		$(LD_FOR_TARGET) -o boot_rom boot_rom.o
+
+        crt0.o: $(KERNEL_OBJS)
+		$(LD_FOR_TARGET) -r -o crt0.o $(KERNEL_OBJS)
+
+        lx_debug.o: %.o: %.c
+		$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(GDBINCLUDE) $(KERNEL_FLAGS_FOR_TARGET) \
+		$(DEFINES) $(INCLUDE) -c $(<) -o $(@)
+    else
+        ###
+        ### Canadian Cross Build
+        ###
+        libc.a crt0.o lx_debug.o:
+	    @if [ -f $(CROSS_BUILD)/$(CONFIG)/lib/$@ ]; then \
+	        cp $(CROSS_BUILD)/$(CONFIG)/lib/$@ .; \
+	    else \
+	        error "libraries must be built on $(CROSS_BUILD) for $(BUILDID)"; \
+	    fi
+
+        .PHONY: boot_rom
+	boot_rom:
+    endif
+endif
+
+syskernel.o: syskernel.gasp 
+
+boot_rom.o: boot_rom.gasp 
+
+boot_rom.hex: boot_rom
+	-$(OBJ2HEX) boot_rom > boot_rom.hex
+
+%.o: %.gasp
+	$(GASP) $< > $*.s
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $*.s
+
+$(DIVOBJS): %.o: %.c
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DIV_FLAGS_FOR_TARGET) \
+	$(DEFINES) $(INCLUDE) -c $(<) -o $(@)
+
+$(KOBJECTS) $(INTRINOBJS) $(SYSCALLS): %.o: %.c
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(KERNEL_FLAGS_FOR_TARGET) \
+	$(DEFINES) $(INCLUDE) -c $(<) -o $(@) 
+
+$(INTRINDIVOBJS): %.o: %.c
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(KERNEL_FLAGS_FOR_TARGET) $(DIV_FLAGS_FOR_TARGET) \
+	$(DEFINES) $(INCLUDE) -c $(<) -o $(@) 
+
+%.o: %.c 
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $(<) -o $(@) 
+
+%.o: %.s
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $(<) -o $(@)
+
+
+.PHONY: clean
+clean:
+	-rm -f *.[oas] boot_rom
+

@@ -1,0 +1,41 @@
+// Turn off load speculation
+-mP2OPT_sel_load_cost=100000 -mP3OPT_allow_dism=FALSE
+
+// Constrain if-conversion
+-mP2OPT_sel_cost_ceiling=10  // (only convert blocks with < 10 operations)
+
+// Completely turn off if_select
+-mP2OPT_transform_ifs_into_selects1=FALSE -mP2OPT_transform_ifs_into_selects2=FALSE
+
+// Trace picker heuristics
+-mP3OPT_trace_picker_heuristic=TS_BASIC_BLOCK // basic blocks only
+-mP3OPT_trace_picker_heuristic=TS_NO_COMPENSATION // no compensation code
+
+// Approximate supeblocks
+-mP3OPT_allow_join_compensation=FALSE
+
+// Options to control if-conversion
+    P2OPT_sel_assign_cost
+    P2OPT_sel_cost_ceiling
+    P2OPT_sel_default_floating_cost
+    P2OPT_sel_default_integer_cost
+    P2OPT_sel_fdiv_cost
+    P2OPT_sel_fsqrt_cost
+    P2OPT_sel_idiv_cost
+    P2OPT_sel_imul_cost
+    P2OPT_sel_load_cost
+    P2OPT_sel_routine_cost_margin
+    P2OPT_sel_select_cost
+    P2OPT_sel_splice_bblocks
+    P2OPT_sel_transform_stores
+
+// Options to control load speculation
+    P3OPT_allow_dismissable_loads
+
+// Options to control general speculation
+    P3OPT_allow_split_compensation
+    P3OPT_allow_motion_above_splits
+    P3OPT_allow_motion_below_splits
+
+// Options to control trace scheduling
+    P3OPT_trace_picker_heuristic

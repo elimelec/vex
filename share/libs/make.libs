@@ -1,0 +1,62 @@
+#############################################################
+# default rules to build libraries
+#############################################################
+
+############################################################################
+### CS Build (only native currently supported)
+###
+ifeq ("$(SIM)", "cs")
+    DEFINES += -DCS_SIM
+    CFLAGS_FOR_TARGET += -mas_t -mas_O2
+
+    $(LIBNAME): $(OBJECTS)
+	$(AR) $(ARFLAGS) $(@) $(OBJECTS)
+	$(RANLIB) $(@)
+else
+############################################################################
+### Other Builds (ISS, hardware)
+###
+    ifeq ("$(build)", "$(host)")
+    ###
+    ### Normal Cross Build
+    ###
+        $(LIBNAME): $(OBJECTS)
+		$(AR_FOR_TARGET) $(ARFLAGS) $(@) $(OBJECTS)
+		$(RANLIB_FOR_TARGET) $(@)
+    else
+    ###
+    ### Canadian Cross Build
+    ###
+        $(LIBNAME):
+		if [ -f $(CROSS_BUILD)/$(CONFIG)/$(DESTDIR)/$(@) ]; then \
+	    	    cp $(CROSS_BUILD)/$(CONFIG)/$(DESTDIR)/$(@) . ; \
+		else \
+	    	    error "$(LIBNAME) must be built on $(CROSS_BUILD) for $(BUILDID)"; \
+	        fi
+    endif
+endif
+############################################################################
+
+
+.PHONY: all
+all: $(LIBNAME)
+
+install: $(LIBNAME)
+	@mkdir -p $(PREFIX)/$(CONFIG)/lib
+	$(INSTALL) -m 644 $(LIBNAME) $(PREFIX)/$(CONFIG)/$(DESTDIR)
+
+%.o: %.gasp
+	$(GASP) $< > $*.s
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $*.s
+
+%.o: %.c
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $(<) -o $(@)
+
+%.o: %.s
+	$(CC_FOR_TARGET) $(CFLAGS_FOR_TARGET) $(DEFINES) $(INCLUDE) -c $(<) -o $(@)
+
+
+.PHONY: clean
+clean:
+	-rm -f *.[oas]
+

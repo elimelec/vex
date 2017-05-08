@@ -1,0 +1,58 @@
+This file contains any messages produced by compilers while
+running configure, to aid debugging if configure makes a mistake.
+
+configure:533: checking for c++
+configure:565: checking whether the C++ compiler (c++  ) works
+configure:581: c++ -o conftest    conftest.C  1>&5
+configure:607: checking whether the C++ compiler (c++  ) is a cross-compiler
+configure:612: checking whether we are using GNU C++
+configure:621: c++ -E conftest.C
+configure:640: checking whether c++ accepts -g
+configure:674: checking for gcc
+configure:787: checking whether the C compiler (gcc  ) works
+configure:803: gcc -o conftest    conftest.c  1>&5
+configure:829: checking whether the C compiler (gcc  ) is a cross-compiler
+configure:834: checking whether we are using GNU C
+configure:862: checking whether gcc accepts -g
+configure:924: checking for a BSD compatible install
+configure:983: checking for dirent.h that defines DIR
+configure:996: gcc -c -g -O2  conftest.c 1>&5
+configure:1021: checking for opendir in -ldir
+configure:1040: gcc -o conftest -g -O2   conftest.c -ldir   1>&5
+/usr/bin/ld: cannot find -ldir
+collect2: ld returned 1 exit status
+configure: failed program was:
+#line 1029 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char opendir();
+
+int main() {
+opendir()
+; return 0; }
+configure:1104: checking how to run the C preprocessor
+configure:1125: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1184: checking for ANSI C header files
+configure:1197: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1264: gcc -o conftest -g -O2   conftest.c  1>&5
+configure: In function 'main':
+configure:1259: warning: incompatible implicit declaration of built-in function 'exit'
+configure:1291: checking for fcntl.h
+configure:1301: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1291: checking for sys/file.h
+configure:1301: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1291: checking for unistd.h
+configure:1301: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1329: checking for working const
+configure:1383: gcc -c -g -O2  conftest.c 1>&5
+configure:1404: checking for inline
+configure:1418: gcc -c -g -O2  conftest.c 1>&5
+configure:1444: checking for size_t
+configure:1477: checking for st_rdev in struct stat
+configure:1490: gcc -c -g -O2  conftest.c 1>&5
+configure:1514: checking for working alloca.h
+configure:1526: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1547: checking for alloca
+configure:1580: gcc -o conftest -g -O2   conftest.c  1>&5

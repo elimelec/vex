@@ -1,0 +1,64 @@
+/* 
+** static char sccs_id[] = "$Id: lseekr.c,v 1.2 2005/01/19 15:57:17 frb Exp $ ";
+*/
+/* Reentrant versions of lseek system call. */
+
+#include <reent.h>
+#include <unistd.h>
+#include <_syslist.h>
+
+/* Some targets provides their own versions of this functions.  Those
+   targets should define REENTRANT_SYSCALLS_PROVIDED in TARGET_CFLAGS.  */
+
+#ifdef _REENT_ONLY
+#ifndef REENTRANT_SYSCALLS_PROVIDED
+#define REENTRANT_SYSCALLS_PROVIDED
+#endif
+#endif
+
+#ifndef REENTRANT_SYSCALLS_PROVIDED
+
+#include "errno_r.h"
+
+/*
+FUNCTION
+	<<_lseek_r>>---Reentrant version of lseek
+	
+INDEX
+	_lseek_r
+
+ANSI_SYNOPSIS
+	#include <reent.h>
+	off_t _lseek_r(struct _reent *<[ptr]>,
+		       int <[fd]>, off_t <[pos]>, int <[whence]>);
+
+TRAD_SYNOPSIS
+	#include <reent.h>
+	off_t _lseek_r(<[ptr]>, <[fd]>, <[pos]>, <[whence]>)
+	struct _reent *<[ptr]>;
+	int <[fd]>;
+	off_t <[pos]>;
+	int <[whence]>;
+
+DESCRIPTION
+	This is a reentrant version of <<lseek>>.  It
+	takes a pointer to the global data block, which holds
+	<<errno>>.
+*/
+
+off_t
+_lseek_r (ptr, fd, pos, whence)
+     struct _reent *ptr;
+     int fd;
+     off_t pos;
+     int whence;
+{
+  off_t ret;
+
+  errno = 0;
+  if ((ret = _lseek (fd, pos, whence)) == (off_t) -1 && errno != 0)
+    ptr->_errno = errno;
+  return ret;
+}
+
+#endif /* ! defined (REENTRANT_SYSCALLS_PROVIDED) */

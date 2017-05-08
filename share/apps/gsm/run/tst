@@ -1,0 +1,45 @@
+#!/bin/csh -f
+
+set ret = 0
+set suf = "unx"
+if ($1 == "little") set suf = "dos"
+
+echo "**** Run COD *****"
+../src/coder spch_$suf.inp spchtst.cod >& coder.log
+
+echo "**** Run IFACE *****"
+../src/ed_iface spch_$suf.cod spchtst.dec >& iface.log
+
+echo "**** Run DEC *****"
+../src/decoder spch_$suf.dec spchtst.out >& decoder.log
+
+echo "**** Compare COD *****"
+cmp spchtst.cod spch_$suf.cod
+if ($status == 0) then
+    echo "COD PASSED"
+else 
+    echo "COD FAILED" 
+    @ ret = $ret + 1
+endif
+
+echo "**** Compare DEC *****"
+cmp spchtst.dec spch_$suf.dec
+if ($status == 0) then 
+    echo "IFACE PASSED"
+else 
+    echo "IFACE FAILED"
+    @ ret = $ret + 1
+endif
+
+echo "**** Compare OUT *****"
+cmp spchtst.out spch_$suf.out
+if ($status == 0) then
+    echo "DEC PASSED"
+else 
+    echo "DEC FAILED"
+    @ ret = $ret + 1
+endif
+
+rm -f spchtst.*
+
+exit $ret

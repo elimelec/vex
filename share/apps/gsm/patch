@@ -1,0 +1,3033 @@
+diff -wbBu --minimal src-orig/agc.c src-new/agc.c
+--- src-orig/agc.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/agc.c	2003-05-29 17:04:27.000000000 +0200
+@@ -29,7 +29,8 @@
+     Word16 l_trm                /* (i)     : subframe size            */
+ )
+ {
+-    Word16 i, exp;
++    int i;
++    Word16 exp;
+     Word16 gain_in, gain_out, g0, gain;
+     Word32 s;
+ 
+@@ -117,7 +118,8 @@
+  Word16 l_trm           /* (i)     : subframe size            */
+ )
+ {
+-    Word16 i, exp;
++    int i;
++    Word16 exp;
+     Word16 gain_in, gain_out, g0;
+     Word32 s;
+ 
+diff -wbBu --minimal src-orig/autocorr.c src-new/autocorr.c
+--- src-orig/autocorr.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/autocorr.c	2003-05-29 17:04:27.000000000 +0200
+@@ -27,13 +27,17 @@
+     Word16 wind[]       /* (i)    : window for LPC analysis         */
+ )
+ {
+-    Word16 i, j, norm;
++    int i, j;
++    Word16 norm;
+     Word16 y[L_WINDOW];
+     Word32 sum;
+     Word16 overfl, overfl_shft;
+ 
+     /* Windowing of signal */
+ 
++#ifdef _vex_
++#pragma ivdep
++#endif
+     for (i = 0; i < L_WINDOW; i++)
+     {
+         y[i] = mult_r (x[i], wind[i]); move16 (); 
+@@ -61,6 +65,9 @@
+             overfl_shft = add (overfl_shft, 4);
+             overfl = 1;                move16 (); /* Set the overflow flag */
+ 
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i = 0; i < L_WINDOW; i++)
+             {
+                 y[i] = shr (y[i], 2);  move16 (); 
+diff -wbBu --minimal src-orig/az_lsp.c src-new/az_lsp.c
+--- src-orig/az_lsp.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/az_lsp.c	2003-05-29 17:04:27.000000000 +0200
+@@ -44,7 +44,7 @@
+     Word16 old_lsp[]    /* (i)     : old lsp[] (in case not found 10 roots) */
+ )
+ {
+-    Word16 i, j, nf, ip;
++    int i, j, nf, ip;
+     Word16 xlow, ylow, xhigh, yhigh, xmid, ymid, xint;
+     Word16 x, y, sign, exp;
+     Word16 *coef;
+@@ -221,7 +221,8 @@
+ 
+ static Word16 Chebps (Word16 x, Word16 f[], Word16 n)
+ {
+-    Word16 i, cheb;
++    int i;
++    Word16 cheb;
+     Word16 b0_h, b0_l, b1_h, b1_l, b2_h, b2_l;
+     Word32 t0;
+ 
+diff -wbBu --minimal src-orig/basicop2.c src-new/basicop2.c
+--- src-orig/basicop2.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/basicop2.c	2003-11-13 12:34:38.000000000 +0100
+@@ -1,3 +1,11 @@
++#ifndef BASIC_OP_C_INCLUDED
++#define BASIC_OP_C_INCLUDED
++#include "basic_op_inline.h"
++
++#if defined(BASIC_OP_INLINE) && !defined(BASIC_OP_H_INCLUDED)
++/* do nothing */
++#else
++
+ /*___________________________________________________________________________
+  |                                                                           |
+  | Basic arithmetic operators.                                               |
+@@ -15,26 +23,25 @@
+ #include "typedef.h"
+ #include "basic_op.h"
+ 
+-#if (WMOPS)
+-#include "count.h"
+-extern BASIC_OP counter;
+-
++#ifdef VEX_ASM_BASICOP
++# include "vex_asm_basicop.h"
+ #endif
+ 
++#define ABS(a)   (((a)<-(a))?-(a):(a))
++#define MIN(a,b) ((a)<(b)?(a):(b))
++#define MAX(a,b) ((a)>(b)?(a):(b))
++
+ /*___________________________________________________________________________
+  |                                                                           |
+  |   Local Functions                                                         |
+  |___________________________________________________________________________|
+ */
+-Word16 saturate (Word32 L_var1);
+ 
+ /*___________________________________________________________________________
+  |                                                                           |
+  |   Constants and Globals                                                   |
+  |___________________________________________________________________________|
+ */
+-Flag Overflow = 0;
+-Flag Carry = 0;
+ 
+ /*___________________________________________________________________________
+  |                                                                           |
+@@ -67,33 +74,7 @@
+  |             range : 0xffff 8000 <= var_out <= 0x0000 7fff.                |
+  |___________________________________________________________________________|
+ */
+-
+-Word16 
+-saturate (Word32 L_var1)
+-{
+-    Word16 var_out;
+-
+-    if (L_var1 > 0X00007fffL)
+-    {
+-        Overflow = 1;
+-        var_out = MAX_16;
+-    }
+-    else if (L_var1 < (Word32) 0xffff8000L)
+-    {
+-        Overflow = 1;
+-        var_out = MIN_16;
+-    }
+-    else
+-    {
+-        Overflow = 0;
+-        var_out = extract_l (L_var1);
+-#if (WMOPS)
+-        counter.extract_l--;
+-#endif
+-    }
+-
+-    return (var_out);
+-}
++/* See basic_op.h */
+ 
+ /*___________________________________________________________________________
+  |                                                                           |
+@@ -129,16 +110,10 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 add (Word16 var1, Word16 var2)
++_INLINE Word16 add(Word16 var1, Word16 var2)
+ {
+-    Word16 var_out;
+-    Word32 L_sum;
+-
+-    L_sum = (Word32) var1 + var2;
+-    var_out = saturate (L_sum);
+-#if (WMOPS)
+-    counter.add++;
+-#endif
++    Word32 L_sum = (Word32) var1 + var2;
++    Word16 var_out = saturate(L_sum);
+     return (var_out);
+ }
+ 
+@@ -176,16 +151,10 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 sub (Word16 var1, Word16 var2)
++_INLINE Word16 sub(Word16 var1, Word16 var2)
+ {
+-    Word16 var_out;
+-    Word32 L_diff;
+-
+-    L_diff = (Word32) var1 - var2;
+-    var_out = saturate (L_diff);
+-#if (WMOPS)
+-    counter.sub++;
+-#endif
++    Word32 L_diff = (Word32) var1 - var2;
++    Word16 var_out = saturate(L_diff);
+     return (var_out);
+ }
+ 
+@@ -217,28 +186,12 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 abs_s (Word16 var1)
+-{
+-    Word16 var_out;
+-
+-    if (var1 == (Word16) 0X8000)
+-    {
+-        var_out = MAX_16;
+-    }
+-    else
+-    {
+-        if (var1 < 0)
+-        {
+-            var_out = -var1;
+-        }
+-        else
++_INLINE Word16 abs_s(Word16 var1)
+         {
+-            var_out = var1;
+-        }
++    Word16 var_out = MAX_16;
++    if (var1 != (Word16) 0X8000) {
++	var_out = ABS(var1);
+     }
+-#if (WMOPS)
+-    counter.abs_s++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -277,37 +230,38 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 shl (Word16 var1, Word16 var2)
++_INLINE Word16 shl(Word16 var1, Word16 var2)
+ {
+     Word16 var_out;
+-    Word32 result;
++    Flag v = Overflow;
+ 
+-    if (var2 < 0)
+-    {
+-        var_out = shr (var1, -var2);
+-#if (WMOPS)
+-        counter.shr--;
+-#endif
++    if (var2 < 0) {
++	Word32 nvar2 = -var2;
++	if (nvar2 >= 15) {
++	    var_out = (var1 < 0) ? -1 : 0;
+     }
+-    else
+-    {
+-        result = (Word32) var1 *((Word32) 1 << var2);
++	else {
++	    if (var1 < 0) {
++		var_out = ~((~var1) >> nvar2);
++	    }
++	    else {
++		var_out = var1 >> nvar2;
++	    }
++	}
++    }
++    else {
++	Word32 result = (Word32) var1 << var2;
+ 
+-        if ((var2 > 15 && var1 != 0) || (result != (Word32) ((Word16) result)))
+-        {
+-            Overflow = 1;
++	if ((var2 > 15 && var1 != 0) || (result != (Word32) ((Word16) result))) {
++	    v = 1;
+             var_out = (var1 > 0) ? MAX_16 : MIN_16;
+         }
+-        else
+-        {
++	else {
+             var_out = extract_l (result);
+-#if (WMOPS)
+-            counter.extract_l--;
+-#endif
+         }
+     }
+-#if (WMOPS)
+-    counter.shl++;
++#ifdef GEN_OVERFLOW
++    Overflow = v;
+ #endif
+     return (var_out);
+ }
+@@ -347,39 +301,40 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 shr (Word16 var1, Word16 var2)
++_INLINE Word16 shr(Word16 var1, Word16 var2)
+ {
+     Word16 var_out;
++    Flag v = Overflow;
+ 
+-    if (var2 < 0)
+-    {
+-        var_out = shl (var1, -var2);
+-#if (WMOPS)
+-        counter.shl--;
+-#endif
++    if (var2 < 0) {
++	Word32 nvar2 = -var2;
++	Word32 result = (Word32) var1 << nvar2;
++
++	if ((nvar2 > 15 && var1 != 0) || (result != (Word32) ((Word16) result))) {
++	    v = 1;
++	    var_out = (var1 > 0) ? MAX_16 : MIN_16;
+     }
+-    else
+-    {
+-        if (var2 >= 15)
+-        {
++	else {
++	    var_out = extract_l(result);
++	}
++    }
++    else {
++	if (var2 >= 15) {
+             var_out = (var1 < 0) ? -1 : 0;
+         }
+-        else
+-        {
+-            if (var1 < 0)
+-            {
++	else {
++	    if (var1 < 0) {
+                 var_out = ~((~var1) >> var2);
+             }
+-            else
+-            {
++	    else {
+                 var_out = var1 >> var2;
+             }
+         }
+     }
+-
+-#if (WMOPS)
+-    counter.shr++;
++#ifdef GEN_OVERFLOW
++    Overflow = v;
+ #endif
++
+     return (var_out);
+ }
+ 
+@@ -418,21 +373,24 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 mult (Word16 var1, Word16 var2)
++_INLINE xWord16 mult(xWord16 var1, xWord16 var2)
+ {
+-    Word16 var_out;
+-    Word32 L_product;
+-
+-    L_product = (Word32) var1 *(Word32) var2;
++    xWord16 var_out;
++#ifdef VEX_ASM_BASICOP
++    Flag v;
++    __MULT(var_out,v,var1,var2);
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
++#endif
++#else
+ 
++    Word32 L_product = var1 * var2;
+     L_product = (L_product & (Word32) 0xffff8000L) >> 15;
+ 
+     if (L_product & (Word32) 0x00010000L)
+         L_product = L_product | (Word32) 0xffff0000L;
+ 
+     var_out = saturate (L_product);
+-#if (WMOPS)
+-    counter.mult++;
+ #endif
+     return (var_out);
+ }
+@@ -472,24 +430,26 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_mult (Word16 var1, Word16 var2)
++
++_INLINE Word32 L_mult(xWord16 var1, xWord16 var2)
+ {
++    Flag v = 0;
+     Word32 L_var_out;
++#ifdef VEX_ASM_BASICOP
++    __LMULT(L_var_out,v,var1,var2);
++#else
++    L_var_out = var1 * var2;
+ 
+-    L_var_out = (Word32) var1 *(Word32) var2;
+-
+-    if (L_var_out != (Word32) 0x40000000L)
+-    {
++    if (L_var_out != 0x40000000L) {
+         L_var_out *= 2;
+     }
+-    else
+-    {
+-        Overflow = 1;
++    else {
++	v = 1;
+         L_var_out = MAX_32;
+     }
+-
+-#if (WMOPS)
+-    counter.L_mult++;
++#endif
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
+     return (L_var_out);
+ }
+@@ -523,14 +483,9 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 negate (Word16 var1)
++_INLINE Word16 negate(Word16 var1)
+ {
+-    Word16 var_out;
+-
+-    var_out = (var1 == MIN_16) ? MAX_16 : -var1;
+-#if (WMOPS)
+-    counter.negate++;
+-#endif
++    Word16 var_out = (var1 == MIN_16) ? MAX_16 : -var1;
+     return (var_out);
+ }
+ 
+@@ -562,16 +517,13 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 extract_h (Word32 L_var1)
++#ifndef _vex_
++_INLINE Word16 extract_h(Word32 L_var1)
+ {
+-    Word16 var_out;
+-
+-    var_out = (Word16) (L_var1 >> 16);
+-#if (WMOPS)
+-    counter.extract_h++;
+-#endif
++    Word16 var_out = (Word16) (L_var1 >> 16);
+     return (var_out);
+ }
++#endif
+ 
+ /*___________________________________________________________________________
+  |                                                                           |
+@@ -601,16 +553,13 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 extract_l (Word32 L_var1)
++#ifndef _vex_
++_INLINE Word16 extract_l(Word32 L_var1)
+ {
+-    Word16 var_out;
+-
+-    var_out = (Word16) L_var1;
+-#if (WMOPS)
+-    counter.extract_l++;
+-#endif
++    Word16 var_out = (Word16) L_var1;
+     return (var_out);
+ }
++#endif
+ 
+ /*___________________________________________________________________________
+  |                                                                           |
+@@ -643,20 +592,10 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 round (Word32 L_var1)
++_INLINE Word16 round(Word32 L_var1)
+ {
+-    Word16 var_out;
+-    Word32 L_rounded;
+-
+-    L_rounded = L_add (L_var1, (Word32) 0x00008000L);
+-#if (WMOPS)
+-    counter.L_add--;
+-#endif
+-    var_out = extract_h (L_rounded);
+-#if (WMOPS)
+-    counter.extract_h--;
+-    counter.round++;
+-#endif
++    Word32 L_rounded = L_add(L_var1, (Word32) 0x00008000L);
++    Word16 var_out = extract_h(L_rounded);
+     return (var_out);
+ }
+ 
+@@ -697,19 +636,18 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_mac (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word32 L_mac(Word32 L_var3, xWord16 var1, xWord16 var2)
+ {
+     Word32 L_var_out;
+-    Word32 L_product;
+-
+-    L_product = L_mult (var1, var2);
+-#if (WMOPS)
+-    counter.L_mult--;
++#ifdef VEX_ASM_BASICOP
++    Flag v = 0;
++    __LMAC(L_var_out,v, L_var3,var1,var2);
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
++#else
++    Word32 L_product = L_mult(var1, var2);
+     L_var_out = L_add (L_var3, L_product);
+-#if (WMOPS)
+-    counter.L_add--;
+-    counter.L_mac++;
+ #endif
+     return (L_var_out);
+ }
+@@ -751,19 +689,18 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_msu (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word32 L_msu(Word32 L_var3, xWord16 var1, xWord16 var2)
+ {
+     Word32 L_var_out;
+-    Word32 L_product;
+-
+-    L_product = L_mult (var1, var2);
+-#if (WMOPS)
+-    counter.L_mult--;
++#ifdef VEX_ASM_BASICOP
++    Flag v = 0;
++    __LMSU(L_var_out,v, L_var3,var1,var2);
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
++#else
++    Word32 L_product = L_mult(var1, var2);
+     L_var_out = L_sub (L_var3, L_product);
+-#if (WMOPS)
+-    counter.L_sub--;
+-    counter.L_msu++;
+ #endif
+     return (L_var_out);
+ }
+@@ -811,19 +748,10 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_macNs (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word32 L_macNs(Word32 L_var3, Word16 var1, Word16 var2)
+ {
+-    Word32 L_var_out;
+-
+-    L_var_out = L_mult (var1, var2);
+-#if (WMOPS)
+-    counter.L_mult--;
+-#endif
++    Word32 L_var_out = L_mult(var1, var2);
+     L_var_out = L_add_c (L_var3, L_var_out);
+-#if (WMOPS)
+-    counter.L_add_c--;
+-    counter.L_macNs++;
+-#endif
+     return (L_var_out);
+ }
+ 
+@@ -870,19 +798,10 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_msuNs (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word32 L_msuNs(Word32 L_var3, Word16 var1, Word16 var2)
+ {
+-    Word32 L_var_out;
+-
+-    L_var_out = L_mult (var1, var2);
+-#if (WMOPS)
+-    counter.L_mult--;
+-#endif
++    Word32 L_var_out = L_mult(var1, var2);
+     L_var_out = L_sub_c (L_var3, L_var_out);
+-#if (WMOPS)
+-    counter.L_sub_c--;
+-    counter.L_msuNs++;
+-#endif
+     return (L_var_out);
+ }
+ 
+@@ -918,22 +837,23 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_add (Word32 L_var1, Word32 L_var2)
++_INLINE Word32 L_add(Word32 L_var1, Word32 L_var2)
+ {
+     Word32 L_var_out;
+-
++    Flag v = 0;
++#ifdef VEX_ASM_BASICOP
++    __LADD(L_var_out,v, L_var1,L_var2);
++#else
+     L_var_out = L_var1 + L_var2;
+-
+-    if (((L_var1 ^ L_var2) & MIN_32) == 0)
+-    {
+-        if ((L_var_out ^ L_var1) & MIN_32)
+-        {
++    if (((L_var1 ^ L_var2) & MIN_32) == 0) {
++	if ((L_var_out ^ L_var1) & MIN_32) {
+             L_var_out = (L_var1 < 0) ? MIN_32 : MAX_32;
+-            Overflow = 1;
++	    v = 1;
+         }
+     }
+-#if (WMOPS)
+-    counter.L_add++;
++#endif
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
+     return (L_var_out);
+ }
+@@ -970,22 +890,23 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_sub (Word32 L_var1, Word32 L_var2)
++_INLINE Word32 L_sub(Word32 L_var1, Word32 L_var2)
+ {
+     Word32 L_var_out;
+-
++    Flag v = Overflow;
++#ifdef VEX_ASM_BASICOP
++    __LSUB(L_var_out,v, L_var1,L_var2);
++#else
+     L_var_out = L_var1 - L_var2;
+-
+-    if (((L_var1 ^ L_var2) & MIN_32) != 0)
+-    {
+-        if ((L_var_out ^ L_var1) & MIN_32)
+-        {
++    if (((L_var1 ^ L_var2) & MIN_32) != 0) {
++	if ((L_var_out ^ L_var1) & MIN_32) {
+             L_var_out = (L_var1 < 0L) ? MIN_32 : MAX_32;
+-            Overflow = 1;
++	    v = 1;
+         }
+     }
+-#if (WMOPS)
+-    counter.L_sub++;
++#endif
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
+     return (L_var_out);
+ }
+@@ -1027,78 +948,65 @@
+  |    operators which take into account its value.                           |
+  |___________________________________________________________________________|
+ */
+-Word32 L_add_c (Word32 L_var1, Word32 L_var2)
++_INLINE Word32 L_add_c(Word32 L_var1, Word32 L_var2)
+ {
+-    Word32 L_var_out;
+-    Word32 L_test;
+     Flag carry_int = 0;
++    Flag v = Overflow;
++    Flag _Carry = Carry;
++    Word32 L_test = L_var1 + L_var2;
++    Word32 L_var_out = L_var1 + L_var2 + Carry;
+ 
+-    L_var_out = L_var1 + L_var2 + Carry;
+-
+-    L_test = L_var1 + L_var2;
+-
+-    if ((L_var1 > 0) && (L_var2 > 0) && (L_test < 0))
+-    {
+-        Overflow = 1;
++    if ((L_var1 > 0) && (L_var2 > 0) && (L_test < 0)) {
++	v = 1;
+         carry_int = 0;
+     }
+-    else
+-    {
+-        if ((L_var1 < 0) && (L_var2 < 0))
+-        {
+-            if (L_test >= 0)
+-	    {
+-                Overflow = 1;
++    else {
++	if ((L_var1 < 0) && (L_var2 < 0)) {
++	    if (L_test >= 0) {
++		v = 1;
+                 carry_int = 1;
+ 	    }
+-            else
+-	    {
+-                Overflow = 0;
++	    else {
++		v = 0;
+                 carry_int = 1;
+ 	    }
+         }
+-        else
+-        {
+-            if (((L_var1 ^ L_var2) < 0) && (L_test >= 0))
+-            {
+-                Overflow = 0;
++	else {
++	    if (((L_var1 ^ L_var2) < 0) && (L_test >= 0)) {
++		v = 0;
+                 carry_int = 1;
+             }
+-            else
+-            {
+-                Overflow = 0;
++	    else {
++		v = 0;
+                 carry_int = 0;
+             }
+         }
+     }
+ 
+-    if (Carry)
+-    {
+-        if (L_test == MAX_32)
+-        {
+-            Overflow = 1;
+-            Carry = carry_int;
++    if (_Carry) {
++	if (L_test == MAX_32) {
++	    v = 1;
++	    _Carry = carry_int;
+         }
+-        else
+-        {
+-            if (L_test == (Word32) 0xFFFFFFFFL)
+-            {
+-                Carry = 1;
++	else {
++	    if (L_test == (Word32) 0xFFFFFFFFL) {
++		_Carry = 1;
+             }
+-            else
+-            {
+-                Carry = carry_int;
++	    else {
++		_Carry = carry_int;
+             }
+         }
+     }
+-    else
+-    {
+-        Carry = carry_int;
++    else {
++	_Carry = carry_int;
+     }
+-
+-#if (WMOPS)
+-    counter.L_add_c++;
++#ifdef GEN_OVERFLOW
++    Overflow = v;
++#endif
++#ifdef GEN_CARRY
++    Carry = _Carry;
+ #endif
++
+     return (L_var_out);
+ }
+ 
+@@ -1140,66 +1048,58 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_sub_c (Word32 L_var1, Word32 L_var2)
++_INLINE Word32 L_sub_c(Word32 L_var1, Word32 L_var2)
+ {
+     Word32 L_var_out;
+     Word32 L_test;
+     Flag carry_int = 0;
++    Flag _Carry = Carry;
++    Flag v = Overflow;
+ 
+-    if (Carry)
+-    {
+-        Carry = 0;
+-        if (L_var2 != MIN_32)
+-        {
++    if (_Carry) {
++	_Carry = 0;
++	if (L_var2 != MIN_32) {
+             L_var_out = L_add_c (L_var1, -L_var2);
+-#if (WMOPS)
+-            counter.L_add_c--;
+-#endif
+         }
+-        else
+-        {
++	else {
+             L_var_out = L_var1 - L_var2;
+-            if (L_var1 > 0L)
+-            {
+-                Overflow = 1;
+-                Carry = 0;
++	    if (L_var1 > 0L) {
++		v = 1;
++		_Carry = 0;
+             }
+         }
+     }
+-    else
+-    {
++    else {
+         L_var_out = L_var1 - L_var2 - (Word32) 0X00000001L;
+         L_test = L_var1 - L_var2;
+ 
+-        if ((L_test < 0) && (L_var1 > 0) && (L_var2 < 0))
+-        {
+-            Overflow = 1;
++	if ((L_test < 0) && (L_var1 > 0) && (L_var2 < 0)) {
++	    v = 1;
+             carry_int = 0;
+         }
+-        else if ((L_test > 0) && (L_var1 < 0) && (L_var2 > 0))
+-        {
+-            Overflow = 1;
++	else if ((L_test > 0) && (L_var1 < 0) && (L_var2 > 0)) {
++	    v = 1;
+             carry_int = 1;
+         }
+-        else if ((L_test > 0) && ((L_var1 ^ L_var2) > 0))
+-        {
+-            Overflow = 0;
++	else if ((L_test > 0) && ((L_var1 ^ L_var2) > 0)) {
++	    v = 0;
+             carry_int = 1;
+         }
+-        if (L_test == MIN_32)
+-        {
+-            Overflow = 1;
+-            Carry = carry_int;
++	if (L_test == MIN_32) {
++	    v = 1;
++	    _Carry = carry_int;
+         }
+-        else
+-        {
+-            Carry = carry_int;
++	else {
++	    _Carry = carry_int;
+         }
+     }
+-
+-#if (WMOPS)
+-    counter.L_sub_c++;
++#ifdef GEN_OVERFLOW
++    Overflow = v;
++#endif
++#ifdef GEN_CARRY
++    Carry = _Carry;
+ #endif
++
+     return (L_var_out);
+ }
+ 
+@@ -1231,14 +1131,9 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_negate (Word32 L_var1)
++_INLINE Word32 L_negate(Word32 L_var1)
+ {
+-    Word32 L_var_out;
+-
+-    L_var_out = (L_var1 == MIN_32) ? MAX_32 : -L_var1;
+-#if (WMOPS)
+-    counter.L_negate++;
+-#endif
++    Word32 L_var_out = (L_var1 == MIN_32) ? MAX_32 : -L_var1;
+     return (L_var_out);
+ }
+ 
+@@ -1276,24 +1171,18 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 mult_r (Word16 var1, Word16 var2)
++_INLINE Word16 mult_r(Word16 var1, Word16 var2)
+ {
+     Word16 var_out;
+-    Word32 L_product_arr;
+-
+-    L_product_arr = (Word32) var1 *(Word32) var2;       /* product */
++    Word32 L_product_arr = (Word32) var1 *(Word32) var2;	/* product */
+     L_product_arr += (Word32) 0x00004000L;      /* round */
+     L_product_arr &= (Word32) 0xffff8000L;
+     L_product_arr >>= 15;       /* shift */
+ 
+-    if (L_product_arr & (Word32) 0x00010000L)   /* sign extend when necessary */
+-    {
++    if (L_product_arr & (Word32) 0x00010000L) {		/* sign extend when necessary */
+         L_product_arr |= (Word32) 0xffff0000L;
+     }
+     var_out = saturate (L_product_arr);
+-#if (WMOPS)
+-    counter.mult_r++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -1331,32 +1220,40 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_shl (Word32 L_var1, Word16 var2)
+-{
+-    Word32 L_var_out;
+-
+-    if (var2 <= 0)
++_INLINE Word32 L_shl(Word32 L_var1, Word32 var2)
+     {
+-        L_var_out = L_shr (L_var1, -var2);
+-#if (WMOPS)
+-        counter.L_shr--;
+-#endif
++    Word32 L_var_out = 0;
++    Flag v = 0;
++#ifdef VEX_ASM_BASICOP
++    __LSHL(L_var_out,v, L_var1,var2);
++#else
++    if (var2 <= 0) {
++	Word16 nvar2 = -var2;
++	if (nvar2 >= 31) {
++	    L_var_out = (L_var1 < 0L) ? -1 : 0;
+     }
+-    else
+-    {
+-        for (; var2 > 0; var2--)
+-        {
+-            if (L_var1 > (Word32) 0X3fffffffL)
+-            {
+-                Overflow = 1;
++	else {
++	    if (L_var1 < 0) {
++		L_var_out = ~((~L_var1) >> nvar2);
++	    }
++	    else {
++		L_var_out = L_var1 >> nvar2;
++	    }
++	}
++    }
++    else {
++#ifdef _vex_
++# pragma unroll_amount(2,1)
++#endif
++	for (; var2 > 0; var2--) {
++	    if (L_var1 > (Word32) 0X3fffffffL) {
++		v = 1;
+                 L_var_out = MAX_32;
+                 break;
+             }
+-            else
+-            {
+-                if (L_var1 < (Word32) 0xc0000000L)
+-                {
+-                    Overflow = 1;
++	    else {
++		if (L_var1 < (Word32) 0xc0000000L) {
++		    v = 1;
+                     L_var_out = MIN_32;
+                     break;
+                 }
+@@ -1365,8 +1262,9 @@
+             L_var_out = L_var1;
+         }
+     }
+-#if (WMOPS)
+-    counter.L_shl++;
++#endif
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
+     return (L_var_out);
+ }
+@@ -1405,37 +1303,52 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_shr (Word32 L_var1, Word16 var2)
+-{
+-    Word32 L_var_out;
+-
+-    if (var2 < 0)
++_INLINE Word32 L_shr(Word32 L_var1, Word32 var2)
+     {
+-        L_var_out = L_shl (L_var1, -var2);
+-#if (WMOPS)
+-        counter.L_shl--;
++    Word32 L_var_out = 0;
++    Flag v = 0;
++#ifdef VEX_ASM_BASICOP
++    __LSHR(L_var_out,v, L_var1,var2);
++#else
++    if (var2 < 0) {
++	Word32 nvar2 = -var2;
++#ifdef _vex_
++# pragma unroll_amount(2,1)
+ #endif
++	for (; nvar2 > 0; nvar2--) {
++	    if (L_var1 > (Word32) 0X3fffffffL) {
++		v = 1;
++		L_var_out = MAX_32;
++		break;
+     }
+-    else
+-    {
+-        if (var2 >= 31)
+-        {
++	    else {
++		if (L_var1 < (Word32) 0xc0000000L) {
++		    v = 1;
++		    L_var_out = MIN_32;
++		    break;
++		}
++	    }
++	    L_var1 *= 2;
++	    L_var_out = L_var1;
++	}
++    }
++    else {
++	if (var2 >= 31) {
+             L_var_out = (L_var1 < 0L) ? -1 : 0;
+         }
+-        else
+-        {
+-            if (L_var1 < 0)
+-            {
++	else {
++	    if (L_var1 < 0) {
+                 L_var_out = ~((~L_var1) >> var2);
+             }
+-            else
+-            {
++	    else {
+                 L_var_out = L_var1 >> var2;
+             }
+         }
+     }
+-#if (WMOPS)
+-    counter.L_shr++;
++#endif
++
++#ifdef GEN_OVERFLOW
++    Overflow |= v;
+ #endif
+     return (L_var_out);
+ }
+@@ -1482,32 +1395,19 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 shr_r (Word16 var1, Word16 var2)
++_INLINE Word16 shr_r(Word16 var1, Word32 var2)
+ {
+-    Word16 var_out;
++    Word16 var_out = 0;
+ 
+-    if (var2 > 15)
+-    {
+-        var_out = 0;
+-    }
+-    else
+-    {
++    if (var2 <= 15) {
+         var_out = shr (var1, var2);
+-#if (WMOPS)
+-        counter.shr--;
+-#endif
+ 
+-        if (var2 > 0)
+-        {
+-            if ((var1 & ((Word16) 1 << (var2 - 1))) != 0)
+-            {
++	if (var2 > 0) {
++	    if ((var1 & ((Word16) 1 << (var2 - 1))) != 0) {
+                 var_out++;
+             }
+         }
+     }
+-#if (WMOPS)
+-    counter.shr_r++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -1550,23 +1450,13 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 mac_r (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word16 mac_r(Word32 L_var3, Word16 var1, Word16 var2)
+ {
+     Word16 var_out;
+ 
+     L_var3 = L_mac (L_var3, var1, var2);
+-#if (WMOPS)
+-    counter.L_mac--;
+-#endif
+     L_var3 = L_add (L_var3, (Word32) 0x00008000L);
+-#if (WMOPS)
+-    counter.L_add--;
+-#endif
+     var_out = extract_h (L_var3);
+-#if (WMOPS)
+-    counter.extract_h--;
+-    counter.mac_r++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -1609,23 +1499,13 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 msu_r (Word32 L_var3, Word16 var1, Word16 var2)
++_INLINE Word16 msu_r(Word32 L_var3, Word16 var1, Word16 var2)
+ {
+     Word16 var_out;
+ 
+     L_var3 = L_msu (L_var3, var1, var2);
+-#if (WMOPS)
+-    counter.L_msu--;
+-#endif
+     L_var3 = L_add (L_var3, (Word32) 0x00008000L);
+-#if (WMOPS)
+-    counter.L_add--;
+-#endif
+     var_out = extract_h (L_var3);
+-#if (WMOPS)
+-    counter.extract_h--;
+-    counter.msu_r++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -1658,14 +1538,9 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_deposit_h (Word16 var1)
++_INLINE Word32 L_deposit_h(Word16 var1)
+ {
+-    Word32 L_var_out;
+-
+-    L_var_out = (Word32) var1 << 16;
+-#if (WMOPS)
+-    counter.L_deposit_h++;
+-#endif
++    Word32 L_var_out = (Word32) var1 << 16;
+     return (L_var_out);
+ }
+ 
+@@ -1698,14 +1573,9 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_deposit_l (Word16 var1)
++_INLINE Word32 L_deposit_l(Word16 var1)
+ {
+-    Word32 L_var_out;
+-
+-    L_var_out = (Word32) var1;
+-#if (WMOPS)
+-    counter.L_deposit_l++;
+-#endif
++    Word32 L_var_out = (Word32) var1;
+     return (L_var_out);
+ }
+ 
+@@ -1751,31 +1621,18 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_shr_r (Word32 L_var1, Word16 var2)
++_INLINE Word32 L_shr_r(Word32 L_var1, Word32 var2)
+ {
+-    Word32 L_var_out;
++    Word32 L_var_out = 0;
+ 
+-    if (var2 > 31)
+-    {
+-        L_var_out = 0;
+-    }
+-    else
+-    {
++    if (var2 <= 31)  {
+         L_var_out = L_shr (L_var1, var2);
+-#if (WMOPS)
+-        counter.L_shr--;
+-#endif
+-        if (var2 > 0)
+-        {
+-            if ((L_var1 & ((Word32) 1 << (var2 - 1))) != 0)
+-            {
++	if (var2 > 0) {
++	    if ((L_var1 & ((Word32) 1 << (var2 - 1))) != 0) {
+                 L_var_out++;
+             }
+         }
+     }
+-#if (WMOPS)
+-    counter.L_shr_r++;
+-#endif
+     return (L_var_out);
+ }
+ 
+@@ -1808,29 +1665,14 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_abs (Word32 L_var1)
++_INLINE Word32 L_abs(Word32 L_var1)
+ {
+-    Word32 L_var_out;
++    Word32 L_var_out = MAX_32;
+ 
+-    if (L_var1 == MIN_32)
+-    {
+-        L_var_out = MAX_32;
+-    }
+-    else
+-    {
+-        if (L_var1 < 0)
+-        {
+-            L_var_out = -L_var1;
+-        }
+-        else
+-        {
+-            L_var_out = L_var1;
+-        }
++    if (L_var1 != MIN_32) {
++	L_var_out = ABS(L_var1);
+     }
+ 
+-#if (WMOPS)
+-    counter.L_abs++;
+-#endif
+     return (L_var_out);
+ }
+ 
+@@ -1865,29 +1707,28 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word32 L_sat (Word32 L_var1)
+-{
+-    Word32 L_var_out;
+-
+-    L_var_out = L_var1;
+-
+-    if (Overflow)
++_INLINE Word32 L_sat(Word32 L_var1)
+     {
++    Word32 L_var_out = L_var1;
++    Flag v = Overflow;
++    Flag _Carry = Carry;
+ 
+-        if (Carry)
+-        {
++    if (v) {
++	if (_Carry) {
+             L_var_out = MIN_32;
+         }
+-        else
+-        {
++	else {
+             L_var_out = MAX_32;
+         }
+ 
+-        Carry = 0;
+-        Overflow = 0;
++	_Carry = 0;
++	v = 0;
+     }
+-#if (WMOPS)
+-    counter.L_sat++;
++#ifdef GEN_OVERFLOW
++    Overflow = v;
++#endif
++#ifdef GEN_CARRY
++    Carry = _Carry;
+ #endif
+     return (L_var_out);
+ }
+@@ -1925,36 +1766,35 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 norm_s (Word16 var1)
++_INLINE Word16 norm_s(Word16 var1)
+ {
+-    Word16 var_out;
++    Word16 var_out = 0;
++    Flag t = 0;
+ 
+-    if (var1 == 0)
+-    {
+-        var_out = 0;
+-    }
+-    else
+-    {
+-        if (var1 == (Word16) 0xffff)
+-        {
++    if (var1 != 0) {
++	if (var1 == (Word16) 0xffff) {
+             var_out = 15;
+         }
+-        else
+-        {
+-            if (var1 < 0)
+-            {
++	else {
++	    if (var1 < 0) {
+                 var1 = ~var1;
+             }
+-            for (var_out = 0; var1 < 0x4000; var_out++)
+-            {
+-                var1 <<= 1;
+-            }
++	    t = 1;
+         }
+     }
+ 
+-#if (WMOPS)
+-    counter.norm_s++;
++#ifdef _vex_
++# pragma if_prob(99,100)
+ #endif
++    if (t) {
++#ifdef _vex_
++# pragma unroll_amount(2,1)
++#endif
++	for (var_out = 0; var1 < 0x4000; var_out++) {
++	    var1 <<= 1;
++	}
++    }
++
+     return (var_out);
+ }
+ 
+@@ -1995,67 +1835,42 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 div_s (Word16 var1, Word16 var2)
++_INLINE Word16 div_s(Word16 var1, Word16 var2)
+ {
+     Word16 var_out = 0;
+-    Word16 iteration;
+     Word32 L_num;
+     Word32 L_denom;
++    int iteration;
+ 
+-    if ((var1 > var2) || (var1 < 0) || (var2 < 0))
+-    {
+-        printf ("Division Error var1=%d  var2=%d\n", var1, var2);
+-        exit (0);
+-    }
+-    if (var2 == 0)
+-    {
+-        printf ("Division by 0, Fatal error \n");
+-        exit (0);
++    if ((var1 > var2) || (var1 < 0) || (var2 < 0) || var2 == 0) {
++	exit(1);
+     }
+-    if (var1 == 0)
+-    {
++    if (var1 == 0) {
+         var_out = 0;
+     }
+-    else
+-    {
+-        if (var1 == var2)
+-        {
++    else {
++	if (var1 == var2) {
+             var_out = MAX_16;
+         }
+-        else
+-        {
++	else {
+             L_num = L_deposit_l (var1);
+-#if (WMOPS)
+-            counter.L_deposit_l--;
+-#endif
+             L_denom = L_deposit_l (var2);
+-#if (WMOPS)
+-            counter.L_deposit_l--;
+-#endif
+ 
+-            for (iteration = 0; iteration < 15; iteration++)
+-            {
++#ifdef _vex_
++# pragma unroll_amount(2,1)
++#endif
++	    for (iteration = 0; iteration < 15; iteration++) {
+                 var_out <<= 1;
+                 L_num <<= 1;
+ 
+-                if (L_num >= L_denom)
+-                {
++		if (L_num >= L_denom) {
+                     L_num = L_sub (L_num, L_denom);
+-#if (WMOPS)
+-                    counter.L_sub--;
+-#endif
+                     var_out = add (var_out, 1);
+-#if (WMOPS)
+-                    counter.add--;
+-#endif
+                 }
+             }
+         }
+     }
+ 
+-#if (WMOPS)
+-    counter.div_s++;
+-#endif
+     return (var_out);
+ }
+ 
+@@ -2092,35 +1907,33 @@
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 norm_l (Word32 L_var1)
++_INLINE Word16 norm_l(Word32 L_var1)
+ {
+-    Word16 var_out;
++    Word16 var_out = 0;
++    Flag t = 0;
+ 
+-    if (L_var1 == 0)
+-    {
+-        var_out = 0;
+-    }
+-    else
+-    {
+-        if (L_var1 == (Word32) 0xffffffffL)
+-        {
++    if (L_var1 != 0) {
++	if (L_var1 == (Word32) 0xffffffffL) {
+             var_out = 31;
+         }
+-        else
+-        {
+-            if (L_var1 < 0)
+-            {
++	else {
++	    if (L_var1 < 0) {
+                 L_var1 = ~L_var1;
+             }
+-            for (var_out = 0; L_var1 < (Word32) 0x40000000L; var_out++)
+-            {
+-                L_var1 <<= 1;
++	    t = 1;
++	}
+             }
++    if (t) {
++#ifdef _vex_
++# pragma unroll_amount(2,1)
++#endif
++	for (var_out = 0; L_var1 < (Word32) 0x40000000L; var_out++) {
++	    L_var1 <<= 1;
+         }
+     }
+ 
+-#if (WMOPS)
+-    counter.norm_l++;
+-#endif
+     return (var_out);
+ }
++
++#endif
++#endif
+diff -wbBu --minimal src-orig/basic_op.h src-new/basic_op.h
+--- src-orig/basic_op.h	2003-11-13 12:01:12.000000000 +0100
++++ src-new/basic_op.h	2003-11-13 12:35:25.000000000 +0100
+@@ -1,10 +1,18 @@
++#ifndef BASIC_OP_H_INCLUDED
++#define BASIC_OP_H_INCLUDED
++#include "basic_op_inline.h"
++
+ /*___________________________________________________________________________
+  |                                                                           |
+  |   Constants and Globals                                                   |
+  |___________________________________________________________________________|
+ */
+-extern Flag Overflow;
+-extern Flag Carry;
++#include "typedef.h"
++
++#if defined(_mfinline_) && defined(BASIC_OP_INLINE)
++inline_declare {
++inline_module basic_op {
++#endif
+ 
+ #define MAX_32 (Word32)0x7fffffffL
+ #define MIN_32 (Word32)0x80000000L
+@@ -12,51 +20,85 @@
+ #define MAX_16 (Word16)0x7fff
+ #define MIN_16 (Word16)0x8000
+ 
++#ifdef  VEX_ASM_BASICOP
++# define xWord16 Word32
++#else
++# define xWord16 Word16
++#endif
++
+ /*___________________________________________________________________________
+  |                                                                           |
+  |   Prototypes for basic arithmetic operators                               |
+  |___________________________________________________________________________|
+ */
+ 
+-Word16 add (Word16 var1, Word16 var2);    /* Short add,           1   */
+-Word16 sub (Word16 var1, Word16 var2);    /* Short sub,           1   */
+-Word16 abs_s (Word16 var1);               /* Short abs,           1   */
+-Word16 shl (Word16 var1, Word16 var2);    /* Short shift left,    1   */
+-Word16 shr (Word16 var1, Word16 var2);    /* Short shift right,   1   */
+-Word16 mult (Word16 var1, Word16 var2);   /* Short mult,          1   */
+-Word32 L_mult (Word16 var1, Word16 var2); /* Long mult,           1   */
+-Word16 negate (Word16 var1);              /* Short negate,        1   */
+-Word16 extract_h (Word32 L_var1);         /* Extract high,        1   */
+-Word16 extract_l (Word32 L_var1);         /* Extract low,         1   */
+-Word16 round (Word32 L_var1);             /* Round,               1   */
+-Word32 L_mac (Word32 L_var3, Word16 var1, Word16 var2);   /* Mac,  1  */
+-Word32 L_msu (Word32 L_var3, Word16 var1, Word16 var2);   /* Msu,  1  */
+-Word32 L_macNs (Word32 L_var3, Word16 var1, Word16 var2); /* Mac without
+-                                                             sat, 1   */
+-Word32 L_msuNs (Word32 L_var3, Word16 var1, Word16 var2); /* Msu without
+-                                                             sat, 1   */
+-Word32 L_add (Word32 L_var1, Word32 L_var2);    /* Long add,        2 */
+-Word32 L_sub (Word32 L_var1, Word32 L_var2);    /* Long sub,        2 */
+-Word32 L_add_c (Word32 L_var1, Word32 L_var2);  /* Long add with c, 2 */
+-Word32 L_sub_c (Word32 L_var1, Word32 L_var2);  /* Long sub with c, 2 */
+-Word32 L_negate (Word32 L_var1);                /* Long negate,     2 */
+-Word16 mult_r (Word16 var1, Word16 var2);       /* Mult with round, 2 */
+-Word32 L_shl (Word32 L_var1, Word16 var2);      /* Long shift left, 2 */
+-Word32 L_shr (Word32 L_var1, Word16 var2);      /* Long shift right, 2*/
+-Word16 shr_r (Word16 var1, Word16 var2);        /* Shift right with
+-                                                   round, 2           */
+-Word16 mac_r (Word32 L_var3, Word16 var1, Word16 var2); /* Mac with
+-                                                           rounding,2 */
+-Word16 msu_r (Word32 L_var3, Word16 var1, Word16 var2); /* Msu with
+-                                                           rounding,2 */
+-Word32 L_deposit_h (Word16 var1);        /* 16 bit var1 -> MSB,     2 */
+-Word32 L_deposit_l (Word16 var1);        /* 16 bit var1 -> LSB,     2 */
++_INLINE Word16 add (Word16 var1, Word16 var2);    /* Short add,           1   */
++_INLINE Word16 sub (Word16 var1, Word16 var2);    /* Short sub,           1   */
++_INLINE Word16 abs_s (Word16 var1);               /* Short abs,           1   */
++_INLINE Word16 shl (Word16 var1, Word16 var2);    /* Short shift left,    1   */
++_INLINE Word16 shr (Word16 var1, Word16 var2);    /* Short shift right,   1   */
++_INLINE Word16 negate (Word16 var1);              /* Short negate,        1   */
++_INLINE Word16 round (Word32 L_var1);             /* Round,               1   */
+ 
+-Word32 L_shr_r (Word32 L_var1, Word16 var2); /* Long shift right with
+-                                                round,  3             */
+-Word32 L_abs (Word32 L_var1);            /* Long abs,              3  */
+-Word32 L_sat (Word32 L_var1);            /* Long saturation,       4  */
+-Word16 norm_s (Word16 var1);             /* Short norm,           15  */
+-Word16 div_s (Word16 var1, Word16 var2); /* Short division,       18  */
+-Word16 norm_l (Word32 L_var1);           /* Long norm,            30  */   
++_INLINE Word32 L_mac (Word32 L_var3, xWord16 var1, xWord16 var2);   /* Mac,  1  */
++_INLINE Word32 L_msu (Word32 L_var3, xWord16 var1, xWord16 var2);   /* Msu,  1  */
++_INLINE Word32 L_mult (xWord16 var1, xWord16 var2); /* Long mult,           1   */
++_INLINE Word32 L_add (Word32 L_var1, Word32 L_var2);    /* Long add,        2 */
++_INLINE Word32 L_sub (Word32 L_var1, Word32 L_var2);    /* Long sub,        2 */
++_INLINE Word32 L_shl (Word32 L_var1, Word32 var2);      /* Long shift left, 2 */
++_INLINE Word32 L_shr (Word32 L_var1, Word32 var2);      /* Long shift right, 2*/
++_INLINE xWord16 mult (xWord16 var1, xWord16 var2); /* Short mult,          1   */
++
++_INLINE Word32 L_macNs (Word32 L_var3, Word16 var1, Word16 var2); /* Mac without
++_INLINE Word32 L_msuNs (Word32 L_var3, Word16 var1, Word16 var2); /* Msu without sat, 1 */
++_INLINE Word32 L_add_c (Word32 L_var1, Word32 L_var2);  /* Long add with c, 2 */
++_INLINE Word32 L_sub_c (Word32 L_var1, Word32 L_var2);  /* Long sub with c, 2 */
++_INLINE Word32 L_negate (Word32 L_var1);                /* Long negate,     2 */
++_INLINE Word16 mult_r (Word16 var1, Word16 var2);       /* Mult with round, 2 */
++_INLINE Word16 shr_r (Word16 var1, Word32 var2);        /* Shift right with round, 2   */
++_INLINE Word16 mac_r (Word32 L_var3, Word16 var1, Word16 var2); /* Mac with rounding,2 */
++_INLINE Word16 msu_r (Word32 L_var3, Word16 var1, Word16 var2); /* Msu with rounding,2 */
++_INLINE Word32 L_deposit_h (Word16 var1);        /* 16 bit var1 -> MSB,     2 */
++_INLINE Word32 L_deposit_l (Word16 var1);        /* 16 bit var1 -> LSB,     2 */
++
++_INLINE Word32 L_shr_r (Word32 L_var1, Word32 var2); /* Long shift right with round,  3 */
++_INLINE Word32 L_abs (Word32 L_var1);            /* Long abs,              3  */
++_INLINE Word32 L_sat (Word32 L_var1);            /* Long saturation,       4  */
++_INLINE Word16 norm_s (Word16 var1);             /* Short norm,           15  */
++_INLINE Word16 div_s (Word16 var1, Word16 var2); /* Short division,       18  */
++_INLINE Word16 norm_l (Word32 L_var1);           /* Long norm,            30  */   
++
++#ifdef _vex_
++# define extract_h(L_var1)  ((Word16) ((L_var1) >> 16)) 
++# define extract_l(L_var1)  ((Word16) (L_var1))
++#else
++ _INLINE Word16 extract_h(Word32 L_var1);
++ _INLINE Word16 extract_l(Word32 L_var1);
++#endif
++
++Flag Overflow;
++Flag Carry;
++
++# define MIN(a,b) ((a)<(b)?(a):(b))
++# define MAX(a,b) ((a)>(b)?(a):(b))
++
++#ifdef GEN_OVERFLOW
++# define saturate(x) ( \
++    Overflow = ((Word32)(x) != (Word16)(x)), \
++               (((Word32)(x) > (Word16)(x)) ? MAX_16 : \
++	        ((Word32)(x) < (Word16)(x)) ? MIN_16 : extract_l(x)) \
++)
++#else
++# define saturate(x) MIN(MAX(x,MIN_16),MAX_16)
++#endif
++
++#if defined(BASIC_OP_INLINE)
++# include "basicop2.c"
++#endif
++
++#if defined(_mfinline_) && defined(BASIC_OP_INLINE)
++}}
++#endif
++
++#endif
+ 
+Only in src-new: basic_op_inline.h
+diff -wbBu --minimal src-orig/bits2prm.c src-new/bits2prm.c
+--- src-orig/bits2prm.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/bits2prm.c	2003-05-29 17:04:27.000000000 +0200
+@@ -50,7 +50,7 @@
+     Word16 prm[]        /* output: analysis parameters  (57+1 parameters) */
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     static const Word16 bitno[PRM_NO] =
+     {
+diff -wbBu --minimal src-orig/c1035pf.c src-new/c1035pf.c
+--- src-orig/c1035pf.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/c1035pf.c	2003-06-10 20:11:27.000000000 +0200
+@@ -25,9 +25,9 @@
+ );
+ 
+ void cor_h (
+-    Word16 h[],         /* (i)  : impulse response of weighted synthesis
++    r_Word16 h[],         /* (i)  : impulse response of weighted synthesis
+                                   filter */
+-    Word16 sign[],      /* (i)  : sign of d[n]                             */
++    r_Word16 sign[],      /* (i)  : sign of d[n]                             */
+     Word16 rr[][L_CODE] /* (o)  : matrix of autocorrelation                */
+ );
+ void search_10i40 (
+@@ -79,27 +79,35 @@
+  *************************************************************************/
+ 
+ void code_10i40_35bits (
+-    Word16 x[],   /* (i)   : target vector                                 */
+-    Word16 cn[],  /* (i)   : residual after long term prediction           */
+-    Word16 h[],   /* (i)   : impulse response of weighted synthesis filter
++    r_Word16 x[],   /* (i)   : target vector                                 */
++    r_Word16 cn[],  /* (i)   : residual after long term prediction           */
++    r_Word16 h[],   /* (i)   : impulse response of weighted synthesis filter
+                              h[-L_subfr..-1] must be set to zero           */
+-    Word16 cod[], /* (o)   : algebraic (fixed) codebook excitation         */
+-    Word16 y[],   /* (o)   : filtered fixed codebook excitation            */
+-    Word16 indx[] /* (o)   : index of 10 pulses (sign + position)          */
++    r_Word16 cod[], /* (o)   : algebraic (fixed) codebook excitation         */
++    r_Word16 y[],   /* (o)   : filtered fixed codebook excitation            */
++    r_Word16 indx[] /* (o)   : index of 10 pulses (sign + position)          */
+ )
+ {
+-    Word16 ipos[NB_PULSE], pos_max[NB_TRACK], codvec[NB_PULSE];
+-    Word16 dn[L_CODE], sign[L_CODE];
+-    Word16 rr[L_CODE][L_CODE], i;
++    r_Word16 ipos[NB_PULSE], pos_max[NB_TRACK], codvec[NB_PULSE];
++    r_Word16 dn[L_CODE], sign[L_CODE];
++    r_Word16 rr[L_CODE][L_CODE], i;
+ 
+     cor_h_x (h, x, dn);
+     set_sign (dn, cn, sign, pos_max, ipos);
+     cor_h (h, sign, rr);
+     search_10i40 (dn, rr, ipos, pos_max, codvec);
+     build_code (codvec, sign, cod, h, y, indx);
+-    for (i = 0; i < 10; i++)
+-    {
+-        q_p (&indx[i], i);
++    for (i = 0; i < 10; i++) {
++	static const r_Word16 gray[8] = { 0, 1, 3, 2, 6, 4, 5, 7 };
++	Word16 tmp = indx[i];
++	if (i - 5 < 0) {
++	    tmp = (tmp & 0x8) | gray[tmp & 0x7];
++	}
++	else {
++	    tmp = gray[tmp & 0x7];
++	}
++	indx[i] = tmp;
++
+     }
+     return;
+ }
+@@ -125,7 +133,7 @@
+     Word16 dn[]     /* (o)   : correlation between target and h[]            */
+ )
+ {
+-    Word16 i, j, k;
++    int i, j, k;
+     Word32 s, y32[L_CODE], max, tot;
+ 
+     /* first keep the result on 32 bits and find absolute maximum */
+@@ -178,7 +186,7 @@
+     Word16 ipos[]     /* (o)  : starting position for each pulse           */
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word16 val, cor, k_cn, k_dn, max, max_of_all, pos;
+     Word16 en[L_CODE];                  /* correlation vector */
+     Word32 s;
+@@ -309,13 +317,14 @@
+  *************************************************************************/
+ 
+ void cor_h (
+-    Word16 h[],         /* (i) : impulse response of weighted synthesis
++    r_Word16 h[],         /* (i) : impulse response of weighted synthesis
+                                  filter                                  */
+-    Word16 sign[],      /* (i) : sign of d[n]                            */
++    r_Word16 sign[],      /* (i) : sign of d[n]                            */
+     Word16 rr[][L_CODE] /* (o) : matrix of autocorrelation               */
+ )
+ {
+-    Word16 i, j, k, dec, h2[L_CODE];
++    int i, j, k, dec;
++    r_Word16 h2[L_CODE];
+     Word32 s;
+ 
+     /* Scaling for maximum precision */
+@@ -395,11 +404,11 @@
+     Word16 codvec[]      /* (o) : algebraic codebook vector                 */
+ )
+ {
+-    Word16 i0, i1, i2, i3, i4, i5, i6, i7, i8, i9;
+-    Word16 i, j, k, pos, ia, ib;
++    int i, j, k, pos, ia, ib;
++    int i0, i1, i2, i3, i4, i5, i6, i7, i8, i9;
+     Word16 psk, ps, ps0, ps1, ps2, sq, sq2;
+     Word16 alpk, alp, alp_16;
+-    Word16 rrv[L_CODE];
++    r_Word16 rrv[L_CODE];
+     Word32 s, alp0, alp1, alp2;
+ 
+     /* fix i0 on maximum of correlation position */
+@@ -436,6 +445,9 @@
+         move16 (); /* initialize "rr[i1][i3]" pointer */
+         move16 (); /* initialize "rrv[i3]" pointer    */
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i3 = ipos[3]; i3 < L_CODE; i3 += STEP)
+         {
+             s = L_mult (rr[i3][i3], _1_8);       /* index incr= STEP+L_CODE */
+@@ -474,6 +486,9 @@
+             move16 (); /* initialize "rrv[i3]" pointer    */
+             move16 (); /* initialize "rr[i2][i3]" pointer */
+             
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i3 = ipos[3]; i3 < L_CODE; i3 += STEP)
+             {
+                 /* index increment = STEP */                
+@@ -514,6 +529,9 @@
+         /* initialize 6 indices for next loop (see i2-i3 loop) */
+         move16 (); move16 (); move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i5 = ipos[5]; i5 < L_CODE; i5 += STEP)
+         {
+             s = L_mult (rr[i5][i5], _1_8);
+@@ -534,6 +552,9 @@
+         /* initialize 6 indices for i4 loop (see i2-i3 loop) */
+         move16 (); move16 (); move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i4 = ipos[4]; i4 < L_CODE; i4 += STEP)
+         {
+             ps1 = add (ps0, dn[i4]);
+@@ -547,6 +568,9 @@
+             /* initialize 3 indices for i5 inner loop (see i2-i3 loop) */
+             move16 (); move16 (); move16 (); 
+             
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i5 = ipos[5]; i5 < L_CODE; i5 += STEP)
+             {
+                 ps2 = add (ps1, dn[i5]);
+@@ -585,6 +609,9 @@
+         move16 (); move16 (); move16 (); move16 (); 
+         move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i7 = ipos[7]; i7 < L_CODE; i7 += STEP)
+         {
+             s = L_mult (rr[i7][i7], _1_16);
+@@ -608,6 +635,9 @@
+         move16 (); move16 (); move16 (); move16 (); 
+         move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i6 = ipos[6]; i6 < L_CODE; i6 += STEP)
+         {
+             ps1 = add (ps0, dn[i6]);
+@@ -623,6 +653,9 @@
+             /* initialize 3 indices for i7 inner loop (see i2-i3 loop) */
+             move16 (); move16 (); move16 (); 
+             
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i7 = ipos[7]; i7 < L_CODE; i7 += STEP)
+             {
+                 ps2 = add (ps1, dn[i7]);
+@@ -661,6 +694,9 @@
+         move16 (); move16 (); move16 (); move16 (); move16 (); 
+         move16 (); move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i9 = ipos[9]; i9 < L_CODE; i9 += STEP)
+         {
+             s = L_mult (rr[i9][i9], _1_16);
+@@ -686,6 +722,9 @@
+         move16 (); move16 (); move16 (); move16 (); move16 (); 
+         move16 (); move16 (); move16 (); move16 (); move16 (); 
+         
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i8 = ipos[8]; i8 < L_CODE; i8 += STEP)
+         {
+             ps1 = add (ps0, dn[i8]);
+@@ -703,6 +742,9 @@
+             /* initialize 3 indices for i9 inner loop (see i2-i3 loop) */
+             move16 (); move16 (); move16 (); 
+             
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i9 = ipos[9]; i9 < L_CODE; i9 += STEP)
+             {
+                 ps2 = add (ps1, dn[i9]);
+@@ -781,7 +823,8 @@
+     Word16 indx[]    /* (o)  : index of 10 pulses (sign+position)           */
+ )
+ {
+-    Word16 i, j, k, track, index, _sign[NB_PULSE];
++    int i, j, k;
++    Word16 track, index, _sign[NB_PULSE];
+     Word16 *p0, *p1, *p2, *p3, *p4, *p5, *p6, *p7, *p8, *p9;
+     Word32 s;
+ 
+diff -wbBu --minimal src-orig/cod_12k2.c src-new/cod_12k2.c
+--- src-orig/cod_12k2.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/cod_12k2.c	2003-05-29 17:04:27.000000000 +0200
+@@ -210,7 +210,7 @@
+ 
+     /* Scalars */
+ 
+-    Word16 i, j, k, i_subfr;
++    int i, j, k, i_subfr;
+     Word16 T_op, T0, T0_min, T0_max, T0_frac;
+     Word16 gain_pit, gain_code, pit_flag, pit_sharp;
+     Word16 temp;
+diff -wbBu --minimal src-orig/coder.c src-new/coder.c
+--- src-orig/coder.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/coder.c	2003-06-05 20:27:50.000000000 +0200
+@@ -56,7 +56,7 @@
+     Word16 vad, sp;
+ 
+     Word16 reset_flag;
+-    Word16 i;
++    int i;
+ 
+     proc_head ("Encoder");
+ 
+Only in src-orig: coder.rsp
+diff -wbBu --minimal src-orig/convolve.c src-new/convolve.c
+--- src-orig/convolve.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/convolve.c	2003-05-29 17:04:27.000000000 +0200
+@@ -25,7 +25,7 @@
+     Word16 L           /* (i)     : vector size                            */
+ )
+ {
+-    Word16 i, n;
++    int i, n;
+     Word32 s;
+ 
+     for (n = 0; n < L; n++)
+diff -wbBu --minimal src-orig/count.c src-new/count.c
+--- src-orig/count.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/count.c	2003-05-29 17:04:27.000000000 +0200
+@@ -56,6 +56,7 @@
+     return (delta);
+ }
+ 
++#ifdef COUNT
+ void move16 (void)
+ {
+     counter.DataMove16++;
+@@ -80,6 +81,7 @@
+ {
+     counter.Logic32++;
+ }
++#endif
+ 
+ void Init_WMOPS_counter (void)
+ {
+diff -wbBu --minimal src-orig/count.h src-new/count.h
+--- src-orig/count.h	2003-11-13 12:01:12.000000000 +0100
++++ src-new/count.h	2003-05-29 17:04:27.000000000 +0200
+@@ -54,8 +54,16 @@
+ void WMOPS_output (Word16 dtx_mode);
+ Word32 fwc (void);
+ 
++#ifdef COUNT
+ void move16 (void);
+ void move32 (void);
+ void logic16 (void);
+ void logic32 (void);
+ void test (void);
++#else
++#define move16()  /**/
++#define move32()  /**/
++#define logic16() /**/
++#define logic32() /**/
++#define test()    /**/
++#endif
+diff -wbBu --minimal src-orig/d1035pf.c src-new/d1035pf.c
+--- src-orig/d1035pf.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/d1035pf.c	2003-05-29 17:04:27.000000000 +0200
+@@ -23,7 +23,8 @@
+ )
+ {
+     static const Word16 dgray[8] = {0, 1, 3, 2, 5, 6, 4, 7};
+-    Word16 i, j, pos1, pos2, sign, tmp;
++    Word16 tmp, pos1, pos2, sign;
++    int i, j;
+ 
+     for (i = 0; i < L_CODE; i++)
+     {
+diff -wbBu --minimal src-orig/dec_12k2.c src-new/dec_12k2.c
+--- src-orig/dec_12k2.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/dec_12k2.c	2003-06-10 19:33:30.000000000 +0200
+@@ -130,15 +130,15 @@
+ 
+     /* Algebraic codevector */
+ 
+-    Word16 code[L_SUBFR];
++    r_Word16 code[L_SUBFR];
+ 
+     /* excitation */
+ 
+-    Word16 excp[L_SUBFR];
++    r_Word16 excp[L_SUBFR];
+ 
+     /* Scalars */
+ 
+-    Word16 i, i_subfr;
++    int i, i_subfr;
+     Word16 T0, T0_frac, index;
+     Word16 gain_pit, gain_code, bfi, pit_sharp;
+     Word16 temp;
+@@ -232,6 +232,9 @@
+         /* Comfort noise: use the same parameters in each subframe */
+         Lsp_Az (lsp_new, A_t);
+ 
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = 0; i < MP1; i++)
+         {
+             A_t[i + MP1] = A_t[i];      move16 (); 
+@@ -241,6 +244,9 @@
+     }
+ 
+     /* update the LSPs for the next frame */
++#ifdef _vex_
++#pragma ivdep
++#endif
+     for (i = 0; i < M; i++)
+     {
+         lsp_old[i] = lsp_new[i];        move16 (); 
+@@ -263,6 +269,9 @@
+     /* pointer to interpolated LPC parameters */
+     Az = A_t;                           move16 (); 
+ 
++#ifdef _vex_
++#pragma ivdep
++#endif
+     for (i_subfr = 0; i_subfr < L_FRAME; i_subfr += L_SUBFR)
+     {
+ 
+@@ -332,6 +341,9 @@
+         pit_sharp = shl (gain_pit, 3);
+ 
+         /* This loop is not entered when SP_FLAG is 0 */
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = T0; i < L_SUBFR; i++)
+         {
+             temp = mult (code[i - T0], pit_sharp);
+@@ -346,6 +358,9 @@
+         test (); /* This test is not passed when SP_FLAG is 0 */
+         if (sub (pit_sharp, 16384) > 0)
+         {
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i = 0; i < L_SUBFR; i++)
+             {
+                 temp = mult (exc[i + i_subfr], pit_sharp);
+@@ -371,6 +386,9 @@
+          * - Find the total excitation.                          *
+          * - Find synthesis speech corresponding to exc[].       *
+          *-------------------------------------------------------*/
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = 0; i < L_SUBFR; i++)
+         {
+             /* exc[i] = gain_pit*exc[i] + gain_code*code[i]; */
+@@ -389,6 +407,9 @@
+         test (); 
+         if (sub (pit_sharp, 16384) > 0)
+         {
++#ifdef _vex_
++#pragma ivdep
++#endif
+             for (i = 0; i < L_SUBFR; i++)
+             {
+                 excp[i] = add (excp[i], exc[i + i_subfr]);
+diff -wbBu --minimal src-orig/decoder.c src-new/decoder.c
+--- src-orig/decoder.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/decoder.c	2003-06-05 20:27:50.000000000 +0200
+@@ -65,7 +65,8 @@
+     Word16 serial[SERIAL_SIZE+2];/* Serial stream              */
+     Word16 Az_dec[AZ_SIZE];     /* Decoded Az for post-filter */
+                                 /* in 4 subframes, length= 44 */
+-    Word16 i, frame, temp;
++    int i;
++    Word16 frame, temp;
+     FILE *f_syn, *f_serial;
+ 
+     Word16 TAF, SID_flag;
+Only in src-orig: decoder.rsp
+diff -wbBu --minimal src-orig/d_gains.c src-new/d_gains.c
+--- src-orig/d_gains.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/d_gains.c	2003-05-29 17:04:27.000000000 +0200
+@@ -59,7 +59,8 @@
+     Word16 ind[]      /* in       : Past gain values                  */
+ )
+ {
+-    Word16 i, j, ix = 0, tmp[5];
++    int i, j;
++    Word16 ix = 0, tmp[5];
+     Word16 max, tmp2[5];
+ 
+     for (i = 0; i < 5; i++)
+@@ -215,7 +216,8 @@
+         32112, 32112, 22937
+     };
+ 
+-    Word16 i, tmp;
++    int i;
++    Word16 tmp;
+     Word16 gcode0, exp, frac, av_pred_en;
+     Word32 ener, ener_code;
+ 
+diff -wbBu --minimal src-orig/d_homing.c src-new/d_homing.c
+--- src-orig/d_homing.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/d_homing.c	2003-05-29 17:04:27.000000000 +0200
+@@ -176,7 +176,7 @@
+         0x0000,                 /* PULSE 4_10 */
+         0x0000                  /* FCB-GAIN 4 */ };
+ 
+-    Word16 i, j;
++    int i, j;
+ 
+     for (i = 0; i < nbr_of_params; i++)
+     {
+@@ -251,7 +251,7 @@
+     /* ------------------------------ */
+     extern Word16 mem_pre;
+ 
+-    Word16 i;
++    int i;
+ 
+     /* reset all the decoder state variables */
+     /* ------------------------------------- */
+diff -wbBu --minimal src-orig/d_plsf_5.c src-new/d_plsf_5.c
+--- src-orig/d_plsf_5.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/d_plsf_5.c	2003-05-29 17:04:27.000000000 +0200
+@@ -67,7 +67,7 @@
+                                      period                                */
+ )
+ {
+-    Word16 i;
++    int i;
+     const Word16 *p_dico;
+     Word16 temp, sign;
+     Word16 lsf1_r[M], lsf2_r[M];
+diff -wbBu --minimal src-orig/dtx.c src-new/dtx.c
+--- src-orig/dtx.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/dtx.c	2003-05-29 17:04:27.000000000 +0200
+@@ -132,7 +132,7 @@
+ 
+ void reset_tx_dtx ()
+ {
+-    Word16 i;
++    int i;
+ 
+     /* suppose infinitely long speech period before start */
+ 
+@@ -181,7 +181,7 @@
+ 
+ void reset_rx_dtx ()
+ {
+-    Word16 i;
++    int i;
+ 
+     /* suppose infinitely long speech period before start */
+ 
+@@ -578,7 +578,7 @@
+     Word16 txdtx_ctrl
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     test (); logic16 (); 
+     if ((txdtx_ctrl & TX_SID_UPDATE) != 0)
+@@ -641,7 +641,7 @@
+     Word16 ser2[]
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     for (i = 0; i < 95; i++)
+     {
+@@ -674,7 +674,8 @@
+     Word16 ser2[]
+ )
+ {
+-    Word16 i, nbr_errors, sid;
++    int i;
++    Word16 nbr_errors, sid;
+ 
+     /* Search for bit errors in SID codeword */
+     nbr_errors = 0;                                     move16 (); 
+@@ -731,7 +732,7 @@
+     Word16 lsf_old[DTX_HANGOVER][M]
+ )
+ {
+-    Word16 i, j, temp;
++    int i, j, temp;
+ 
+     /* shift LSF data to make room for LSFs from current frame */
+     /* This can also be implemented by using circular buffering */
+@@ -777,7 +778,7 @@
+     Word16 lsf_p_CN[M]
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word32 L_temp;
+ 
+     for (j = 0; j < M; j++)
+@@ -820,7 +821,7 @@
+     Word16 lsf_aver[M]
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word32 L_temp;
+ 
+     for (j = 0; j < M; j++)
+@@ -946,7 +947,8 @@
+     Word16 res2[L_SUBFR]
+ )
+ {
+-    Word16 i, norm, norm1, temp, overfl;
++    int i;
++    Word16 norm, norm1, temp, overfl;
+     Word32 L_temp;
+ 
+     /* Compute the energy of the LP residual signal */
+@@ -1035,7 +1037,7 @@
+     Word16 gain_code_old[4 * DTX_HANGOVER]
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word32 L_temp, L_ret;
+ 
+     L_ret = 0L;                                        move32 (); 
+@@ -1079,7 +1081,7 @@
+     Word16 gain_code_old[4 * DTX_HANGOVER]
+ )
+ {
+-    Word16 i;
++    int i;
+     Word32 L_ret;
+ 
+     L_ret = L_mult (0x470, CN_excitation_gain);
+@@ -1112,7 +1114,7 @@
+     Word32 *seed
+ )
+ {
+-    Word16 i, j, k;
++    int i, j, k;
+ 
+     for (i = 0; i < L_SUBFR; i++)
+     {
+@@ -1280,7 +1282,7 @@
+     Word16 rx_dtx_state
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     for (i = 0; i < M; i++)
+     {
+diff -wbBu --minimal src-orig/ed_iface.c src-new/ed_iface.c
+--- src-orig/ed_iface.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/ed_iface.c	2003-06-05 20:27:50.000000000 +0200
+@@ -246,7 +246,7 @@
+ static void random_parameters (Word16 serial_params[])
+ {
+     static Word32 L_PN_seed = 0x321CEDE2L;
+-    Word16 i;
++    int i;
+ 
+     /* Set the 244 speech parameter bits to random bit values */
+     /* Function pseudonoise() is defined in dtx.c             */
+@@ -269,7 +269,7 @@
+ int main (int argc, char *argv[])
+ {
+     FILE *infile, *outfile;
+-    Word16 i;
++    int i;
+ 
+     if (argc != 3)
+     {
+diff -wbBu --minimal src-orig/e_homing.c src-new/e_homing.c
+--- src-orig/e_homing.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/e_homing.c	2003-05-29 17:04:27.000000000 +0200
+@@ -47,7 +47,7 @@
+ 
+ Word16 encoder_homing_frame_test (Word16 input_frame[])
+ {
+-    Word16 i, j;
++    int i, j;
+ 
+     for (i = 0; i < L_FRAME; i++)
+     {
+@@ -96,7 +96,7 @@
+     /* Past quantized prediction error */
+     extern Word16 past_r2_q[M];
+ 
+-    Word16 i;
++    int i;
+ 
+     /* reset all the encoder state variables */
+     /* ------------------------------------- */
+diff -wbBu --minimal src-orig/enc_lag6.c src-new/enc_lag6.c
+--- src-orig/enc_lag6.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/enc_lag6.c	2003-05-29 17:04:27.000000000 +0200
+@@ -50,7 +50,7 @@
+     Word16 pit_flag    /* input : Flag for 1st or 3rd subframe */
+ )
+ {
+-    Word16 index, i;
++    int index, i;
+ 
+     test (); 
+     if (pit_flag == 0)          /* if 1st or 3rd subframe */
+diff -wbBu --minimal src-orig/g_code.c src-new/g_code.c
+--- src-orig/g_code.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/g_code.c	2003-05-29 17:04:27.000000000 +0200
+@@ -24,13 +24,16 @@
+     Word16 y2[]         /* in    : filtered innovation vector      */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 xy, yy, exp_xy, exp_yy, gain;
+     Word16 scal_y2[L_SUBFR];
+     Word32 s;
+ 
+     /* Scale down Y[] by 2 to avoid overflow */
+ 
++#ifdef _vex_
++#pragma ivdep
++#endif
+     for (i = 0; i < L_SUBFR; i++)
+     {
+         scal_y2[i] = shr (y2[i], 1);  move16 (); 
+diff -wbBu --minimal src-orig/g_pitch.c src-new/g_pitch.c
+--- src-orig/g_pitch.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/g_pitch.c	2003-05-29 17:04:27.000000000 +0200
+@@ -15,6 +15,10 @@
+  *
+  *************************************************************************/
+ 
++#ifdef _mfinline_
++# define GEN_OVERFLOW  /* see basic_op.h */
++#endif
++
+ #include "typedef.h"
+ #include "basic_op.h"
+ #include "oper_32b.h"
+@@ -27,7 +31,7 @@
+     Word16 L_subfr      /*       : Length of subframe.                     */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 xy, yy, exp_xy, exp_yy, gain;
+     Word32 s;
+ 
+diff -wbBu --minimal src-orig/inter_6.c src-new/inter_6.c
+--- src-orig/inter_6.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/inter_6.c	2003-05-29 17:04:27.000000000 +0200
+@@ -30,7 +30,7 @@
+     Word16 frac      /* (i)  : fraction            */
+ )
+ {
+-    Word16 i, k;
++    int i, k;
+     Word16 *x1, *x2;
+     const Word16 *c1, *c2;
+     Word32 s;
+diff -wbBu --minimal src-orig/int_lpc.c src-new/int_lpc.c
+--- src-orig/int_lpc.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/int_lpc.c	2003-05-29 17:04:27.000000000 +0200
+@@ -38,7 +38,7 @@
+                            all subframes */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 lsp[M];
+ 
+     /*  lsp[i] = lsp_mid[i] * 0.5 + lsp_old[i] * 0.5 */
+@@ -88,7 +88,7 @@
+                                  in subframes 1 and 3 */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 lsp[M];
+ 
+     /*  lsp[i] = lsp_mid[i] * 0.5 + lsp_old[i] * 0.5 */
+diff -wbBu --minimal src-orig/lag_wind.c src-new/lag_wind.c
+--- src-orig/lag_wind.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/lag_wind.c	2003-05-29 17:04:27.000000000 +0200
+@@ -25,7 +25,7 @@
+     Word16 r_l[]        /* (i/o)   : Autocorrelations  (lsb)          */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word32 x;
+ 
+     for (i = 1; i <= m; i++)
+diff -wbBu --minimal src-orig/levinson.c src-new/levinson.c
+--- src-orig/levinson.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/levinson.c	2003-05-29 17:04:27.000000000 +0200
+@@ -54,7 +54,7 @@
+ 
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word16 hi, lo;
+     Word16 Kh, Kl;                /* reflexion coefficient; hi and lo      */
+     Word16 alp_h, alp_l, alp_exp; /* Prediction gain; hi lo and exponent   */
+diff -wbBu --minimal src-orig/lsp_az.c src-new/lsp_az.c
+--- src-orig/lsp_az.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/lsp_az.c	2003-05-29 17:04:27.000000000 +0200
+@@ -27,7 +27,7 @@
+     Word16 a[]           /* (o)  : predictor coefficients (order = 10)  */
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word32 f1[6], f2[6];
+     Word32 t0;
+ 
+@@ -86,7 +86,8 @@
+ 
+ static void Get_lsp_pol (Word16 *lsp, Word32 *f)
+ {
+-    Word16 i, j, hi, lo;
++    int i, j;
++    Word16 hi, lo;
+     Word32 t0;
+     
+     /* f[0] = 1.0;             */
+diff -wbBu --minimal src-orig/lsp_lsf.c src-new/lsp_lsf.c
+--- src-orig/lsp_lsf.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/lsp_lsf.c	2003-05-29 17:04:27.000000000 +0200
+@@ -26,7 +26,8 @@
+     Word16 m            /* (i) : LPC order                                */
+ )
+ {
+-    Word16 i, ind, offset;
++    int i, ind;
++    Word16 offset;
+     Word32 L_tmp;
+ 
+     for (i = 0; i < m; i++)
+@@ -49,7 +50,7 @@
+     Word16 m            /* (i)  : LPC order                                */
+ )
+ {
+-    Word16 i, ind;
++    int i, ind;
+     Word32 L_tmp;
+ 
+     ind = 63;                       /* begin at end of table -1 */
+Only in src-orig: makefile.gcc
+Only in src-orig: makefile.hp
+Only in src-orig: makefile.pc
+Only in src-orig: makefile.sun
+diff -wbBu --minimal src-orig/pitch_f6.c src-new/pitch_f6.c
+--- src-orig/pitch_f6.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/pitch_f6.c	2003-06-12 17:50:05.000000000 +0200
+@@ -27,8 +27,8 @@
+ 
+  /* Local functions */
+ 
+-void Norm_Corr (Word16 exc[], Word16 xn[], Word16 h[], Word16 L_subfr,
+-                Word16 t_min, Word16 t_max, Word16 corr_norm[]);
++void Norm_Corr (r_Word16 exc[], r_Word16 xn[], r_Word16 h[], Word16 L_subfr,
++                Word16 t_min, Word16 t_max, r_Word16 corr_norm[]);
+ 
+ Word16 Pitch_fr6 (    /* (o)     : pitch period.                          */
+     Word16 exc[],     /* (i)     : excitation buffer                      */
+@@ -42,7 +42,7 @@
+     Word16 *pit_frac  /* (o)     : chosen fraction.                       */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 t_min, t_max;
+     Word16 max, lag, frac;
+     Word16 *corr;
+@@ -131,16 +131,16 @@
+  *************************************************************************/
+ 
+ void 
+-Norm_Corr (Word16 exc[], Word16 xn[], Word16 h[], Word16 L_subfr,
+-           Word16 t_min, Word16 t_max, Word16 corr_norm[])
++Norm_Corr (r_Word16 exc[], r_Word16 xn[], r_Word16 h[], Word16 L_subfr,
++           Word16 t_min, Word16 t_max, r_Word16 corr_norm[])
+ {
+-    Word16 i, j, k;
++    int i, j, k;
+     Word16 corr_h, corr_l, norm_h, norm_l;
+     Word32 s;
+ 
+     /* Usally dynamic allocation of (L_subfr) */
+-    Word16 excf[80];
+-    Word16 scaling, h_fac, *s_excf, scaled_excf[80];
++    r_Word16 excf[80];
++    r_Word16 scaling, h_fac, *s_excf, scaled_excf[80];
+ 
+     k = -t_min;                                move16 (); 
+ 
+diff -wbBu --minimal src-orig/pitch_ol.c src-new/pitch_ol.c
+--- src-orig/pitch_ol.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/pitch_ol.c	2003-06-10 20:14:35.000000000 +0200
+@@ -27,12 +27,12 @@
+ /* local function */
+ 
+ static Word16 Lag_max (   /* output: lag found                              */
+-    Word16 scal_sig[],    /* input : scaled signal                          */
++    r_Word16 scal_sig[],    /* input : scaled signal                          */
+     Word16 scal_fac,      /* input : scaled signal factor                   */
+     Word16 L_frame,       /* input : length of frame to compute pitch       */
+     Word16 lag_max,       /* input : maximum lag                            */
+     Word16 lag_min,       /* input : minimum lag                            */
+-    Word16 *cor_max);     /* output: normalized correlation of selected lag */
++    r_Word16 *cor_max);     /* output: normalized correlation of selected lag */
+ 
+ Word16 Pitch_ol (      /* output: open loop pitch lag                        */
+     Word16 signal[],   /* input : signal used to compute the open loop pitch */
+@@ -42,7 +42,7 @@
+     Word16 L_frame     /* input : length of frame to compute pitch           */
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word16 max1, max2, max3;
+     Word16 p_max1, p_max2, p_max3;
+     Word32 t0;
+@@ -75,6 +75,9 @@
+     test (); test (); 
+     if (L_sub (t0, MAX_32) == 0L)               /* Test for overflow */
+     {
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = -pit_max; i < L_frame; i++)
+         {
+             scal_sig[i] = shr (signal[i], 3);   move16 (); 
+@@ -84,6 +87,9 @@
+     else if (L_sub (t0, (Word32) 1048576L) < (Word32) 0)
+         /* if (t0 < 2^20) */
+     {
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = -pit_max; i < L_frame; i++)
+         {
+             scal_sig[i] = shl (signal[i], 3);   move16 (); 
+@@ -92,6 +98,9 @@
+     }
+     else
+     {
++#ifdef _vex_
++#pragma ivdep
++#endif
+         for (i = -pit_max; i < L_frame; i++)
+         {
+             scal_sig[i] = signal[i];            move16 (); 
+@@ -154,15 +163,15 @@
+  *************************************************************************/
+ 
+ static Word16 Lag_max ( /* output: lag found                               */
+-    Word16 scal_sig[],  /* input : scaled signal.                          */
++    r_Word16 scal_sig[],  /* input : scaled signal.                          */
+     Word16 scal_fac,    /* input : scaled signal factor.                   */
+     Word16 L_frame,     /* input : length of frame to compute pitch        */
+     Word16 lag_max,     /* input : maximum lag                             */
+     Word16 lag_min,     /* input : minimum lag                             */
+-    Word16 *cor_max)    /* output: normalized correlation of selected lag  */
++    r_Word16 *cor_max)    /* output: normalized correlation of selected lag  */
+ {
+-    Word16 i, j;
+-    Word16 *p, *p1;
++    int i, j;
++    r_Word16 *p, *p1;
+     Word32 max, t0;
+     Word16 max_h, max_l, ener_h, ener_l;
+     Word16 p_max;
+diff -wbBu --minimal src-orig/pred_lt6.c src-new/pred_lt6.c
+--- src-orig/pred_lt6.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/pred_lt6.c	2003-06-12 17:46:31.000000000 +0200
+@@ -39,16 +39,16 @@
+ };
+ 
+ void Pred_lt_6 (
+-    Word16 exc[],     /* in/out: excitation buffer */
++    r_Word16 exc[],     /* in/out: excitation buffer */
+     Word16 T0,        /* input : integer pitch lag */
+     Word16 frac,      /* input : fraction of lag   */
+     Word16 L_subfr    /* input : subframe size     */
+ )
+ {
+-    Word16 i, j, k;
+-    Word16 *x0, *x1, *x2;
+-    const Word16 *c1, *c2;
+-    Word32 s;
++    int i, j, k;
++    r_Word16 *x0, *x1, *x2;
++    const r_Word16 *c1, *c2;
++    Word32 s, s0, s1;
+ 
+     x0 = &exc[-T0];             move16 (); 
+ 
+@@ -59,6 +59,9 @@
+         frac = add (frac, UP_SAMP);
+         x0--;
+     }
++#ifdef _vex_
++#pragma unroll_amount(4,1)
++#endif
+     for (j = 0; j < L_subfr; j++)
+     {
+         x1 = x0++;              move16 (); 
+@@ -66,12 +69,16 @@
+         c1 = &inter_6[frac];
+         c2 = &inter_6[sub (UP_SAMP, frac)];
+ 
+-        s = 0;                  move32 (); 
++        s = s0 = s1 = 0;                  move32 (); 
++#ifdef _vex_
++#pragma unroll_amount(10,1)
++#endif
+         for (i = 0, k = 0; i < L_INTERPOL; i++, k += UP_SAMP)
+         {
+-            s = L_mac (s, x1[-i], c1[k]);
+-            s = L_mac (s, x2[i], c2[k]);
++            s0 = L_mac (s0, x1[-i], c1[k]);
++            s1 = L_mac (s1, x2[i], c2[k]);
+         }
++	s = L_add(s0,s1);
+ 
+         exc[j] = round (s);     move16 (); 
+     }
+diff -wbBu --minimal src-orig/pre_proc.c src-new/pre_proc.c
+--- src-orig/pre_proc.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/pre_proc.c	2003-05-29 17:04:27.000000000 +0200
+@@ -52,7 +52,8 @@
+     Word16 signal[], /* input/output signal */
+     Word16 lg)       /* lenght of signal    */
+ {
+-    Word16 i, x2;
++    int i;
++    Word16 x2;
+     Word32 L_tmp;
+ 
+     for (i = 0; i < lg; i++)
+diff -wbBu --minimal src-orig/prm2bits.c src-new/prm2bits.c
+--- src-orig/prm2bits.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/prm2bits.c	2003-05-29 17:04:27.000000000 +0200
+@@ -50,7 +50,7 @@
+     Word16 bits[]       /* output: 244 serial bits                        */
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     static const Word16 bitno[PRM_NO] =
+     {
+diff -wbBu --minimal src-orig/pstfilt2.c src-new/pstfilt2.c
+--- src-orig/pstfilt2.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/pstfilt2.c	2003-05-29 17:04:27.000000000 +0200
+@@ -98,10 +98,10 @@
+     Word16 Ap3[MP1], Ap4[MP1];  /* bandwidth expanded LP parameters */
+     Word16 *Az;                 /* pointer to Az_4:                 */
+                                 /*  LPC parameters in each subframe */
+-    Word16 i_subfr;             /* index for beginning of subframe  */
++    int i_subfr;                /* index for beginning of subframe  */
+     Word16 h[L_H];
+ 
+-    Word16 i;
++    int i;
+     Word16 temp1, temp2;
+     Word32 L_tmp;
+ 
+diff -wbBu --minimal src-orig/q_gains.c src-new/q_gains.c
+--- src-orig/q_gains.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/q_gains.c	2003-05-29 17:04:27.000000000 +0200
+@@ -31,7 +31,8 @@
+     Word16 *gain        /* (i)  :  Pitch gain to quantize  */
+ )
+ {
+-    Word16 i, index, gain_q14, err, err_min;
++    int i, index;
++    Word16 gain_q14, err, err_min;
+ 
+     gain_q14 = shl (*gain, 2);
+ 
+@@ -68,7 +69,7 @@
+     Word16 i_subfr
+ )
+ {
+-    Word16 i, index;
++    int i, index;
+     Word16 gcode0, err, err_min, exp, frac;
+     Word32 ener, ener_code;
+     Word16 aver_gain;
+diff -wbBu --minimal src-orig/q_plsf_5.c src-new/q_plsf_5.c
+--- src-orig/q_plsf_5.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/q_plsf_5.c	2003-05-29 17:04:27.000000000 +0200
+@@ -82,7 +82,7 @@
+     Word16 txdtx_ctrl  /* input : tx dtx control word                */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 lsf1[M], lsf2[M], wf1[M], wf2[M], lsf_p[M], lsf_r1[M], lsf_r2[M];
+     Word16 lsf1_q[M], lsf2_q[M];
+     Word16 lsf_aver[M];
+@@ -238,7 +238,8 @@
+     Word16 dico_size    /* input : size of quantization codebook */
+ )
+ {
+-    Word16 i, index, temp;
++    int i, index;
++    Word16 temp;
+     const Word16 *p_dico;
+     Word32 dist_min, dist;
+ 
+@@ -293,7 +294,8 @@
+     Word16 *wf2,        /* input : 2nd LSF weighting factors     */
+     Word16 dico_size)   /* input : size of quantization codebook */
+ {
+-    Word16 i, index, sign, temp;
++    int i, index;
++    Word16 sign, temp;
+     const Word16 *p_dico;
+     Word32 dist_min, dist;
+ 
+@@ -419,7 +421,7 @@
+     Word16 *wf)          /* output: square of weighting factors */
+ {
+     Word16 temp;
+-    Word16 i;
++    int i;
+     /* wf[0] = lsf[1] - 0  */
+     wf[0] = lsf[1];                                     move16 (); 
+     for (i = 1; i < 9; i++)
+Only in src-orig: readme.txt
+diff -wbBu --minimal src-orig/reorder.c src-new/reorder.c
+--- src-orig/reorder.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/reorder.c	2003-05-29 17:04:27.000000000 +0200
+@@ -18,7 +18,7 @@
+     Word16 n            /* (i)       : LPC order                             */
+ )
+ {
+-    Word16 i;
++    int i;
+     Word16 lsf_min;
+ 
+     lsf_min = min_dist;         move16 (); 
+diff -wbBu --minimal src-orig/residu.c src-new/residu.c
+--- src-orig/residu.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/residu.c	2003-05-29 17:04:27.000000000 +0200
+@@ -24,7 +24,7 @@
+     Word16 lg   /* (i)     : size of filtering                            */
+ )
+ {
+-    Word16 i, j;
++    int i, j;
+     Word32 s;
+ 
+     for (i = 0; i < lg; i++)
+diff -wbBu --minimal src-orig/set_zero.c src-new/set_zero.c
+--- src-orig/set_zero.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/set_zero.c	2003-05-29 17:04:27.000000000 +0200
+@@ -15,7 +15,7 @@
+     Word16 L            /* (i)    : length of vector    */
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     for (i = 0; i < L; i++)
+     {
+Only in src-orig: spch_dos.cod
+Only in src-orig: spch_dos.dec
+Only in src-orig: spch_dos.inp
+Only in src-orig: spch_dos.out
+Only in src-orig: spch_unx.cod
+Only in src-orig: spch_unx.dec
+Only in src-orig: spch_unx.inp
+Only in src-orig: spch_unx.out
+diff -wbBu --minimal src-orig/syn_filt.c src-new/syn_filt.c
+--- src-orig/syn_filt.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/syn_filt.c	2003-06-12 15:49:38.000000000 +0200
+@@ -14,23 +14,26 @@
+ #define m 10
+ 
+ void Syn_filt (
+-    Word16 a[],     /* (i)     : a[m+1] prediction coefficients   (m=10)  */
+-    Word16 x[],     /* (i)     : input signal                             */
+-    Word16 y[],     /* (o)     : output signal                            */
++    r_Word16 a[],     /* (i)     : a[m+1] prediction coefficients   (m=10)  */
++    r_Word16 x[],     /* (i)     : input signal                             */
++    r_Word16 y[],     /* (o)     : output signal                            */
+     Word16 lg,      /* (i)     : size of filtering                        */
+-    Word16 mem[],   /* (i/o)   : memory associated with this filtering.   */
++    r_Word16 mem[],   /* (i/o)   : memory associated with this filtering.   */
+     Word16 update   /* (i)     : 0=no update, 1=update of memory.         */
+ )
+ {
+-    Word16 i, j;
+-    Word32 s;
+-    Word16 tmp[80];   /* This is usually done by memory allocation (lg+m) */
+-    Word16 *yy;
++    int i, j;
++    r_Word16 tmp[80];   /* This is usually done by memory allocation (lg+m) */
++    r_Word16 *yy;
++    Word16 yym1, yym2, yym3, yym4, yym5, yym6, yym7, yym8, yym9, yymA;
+ 
+     /* Copy mem[] to yy[] */
+ 
+     yy = tmp;                           move16 (); 
+ 
++#ifdef _vex_
++#pragma unroll_amount(10,1)
++#endif
+     for (i = 0; i < m; i++)
+     {
+         *yy++ = mem[i];                 move16 (); 
+@@ -38,15 +41,45 @@
+ 
+     /* Do the filtering. */
+ 
++    yym1 = yy[-1];
++    yym2 = yy[-2];
++    yym3 = yy[-3];
++    yym4 = yy[-4];
++    yym5 = yy[-5];
++    yym6 = yy[-6];
++    yym7 = yy[-7];
++    yym8 = yy[-8];
++    yym9 = yy[-9];
++    yymA = yy[-10];
++#ifdef _vex_
++#pragma unroll_amount(1,1)
++#endif
+     for (i = 0; i < lg; i++)
+     {
+-        s = L_mult (x[i], a[0]);
+-        for (j = 1; j <= m; j++)
+-        {
+-            s = L_msu (s, a[j], yy[-j]);
+-        }
+-        s = L_shl (s, 3);
+-        *yy++ = round (s);              move16 (); 
++        Word32 p0 = L_mult (x[i], a[0]);
++        Word32 p1 = L_mult (a[1], yym1);
++        Word32 p2 = L_mult (a[2], yym2);
++        Word32 p3 = L_mult (a[3], yym3);
++        Word32 p4 = L_mult (a[4], yym4);
++        Word32 p5 = L_mult (a[5], yym5);
++        Word32 p6 = L_mult (a[6], yym6);
++        Word32 p7 = L_mult (a[7], yym7);
++        Word32 p8 = L_mult (a[8], yym8);
++        Word32 p9 = L_mult (a[9], yym9);
++        Word32 pA = L_mult (a[10], yymA);
++	Word32 s = L_sub(p0,L_add(L_add(L_add(L_add(p1,p2),L_add(p3,p4)),
++			                L_add(L_add(p5,p6),L_add(p7,p8))),
++		         L_add(p9,pA)));
++	yymA = yym9;
++	yym9 = yym8;
++	yym8 = yym7;
++	yym7 = yym6;
++	yym6 = yym5;
++	yym5 = yym4;
++	yym4 = yym3;
++	yym3 = yym2;
++	yym2 = yym1;
++        *yy++ = yym1 = round (L_shl(s,3));              move16 (); 
+     }
+ 
+     for (i = 0; i < lg; i++)
+@@ -59,6 +92,9 @@
+     test (); 
+     if (update != 0)
+     {
++#ifdef _vex_
++#pragma unroll_amount(4,1)
++#endif
+         for (i = 0; i < m; i++)
+         {
+             mem[i] = y[lg - m + i];     move16 (); 
+Only in src-orig: ts_dos.bat
+Only in src-orig: ts_unx.bat
+diff -wbBu --minimal src-orig/typedef.h src-new/typedef.h
+--- src-orig/typedef.h	2003-11-13 12:01:12.000000000 +0100
++++ src-new/typedef.h	2003-11-13 12:12:36.000000000 +0100
+@@ -14,6 +14,15 @@
+ typedef long Word32;
+ typedef int Flag;
+ 
++#elif defined(__vex)
++typedef short Word16;
++typedef int Word32;
++typedef int Flag;
++#pragma restrict 
++typedef Word16 r_Word16;
++#pragma restrict 
++typedef Word32 r_Word32;
++
+ #elif defined(__unix__) || defined(__unix)
+ typedef short Word16;
+ typedef int Word32;
+diff -wbBu --minimal src-orig/vad.c src-new/vad.c
+--- src-orig/vad.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/vad.c	2003-05-29 17:04:27.000000000 +0200
+@@ -103,7 +103,7 @@
+ 
+ void vad_reset ()
+ {
+-    Word16 i;
++    int i;
+ 
+     /* Initialize rvad variables */
+     rvad[0] = 0x6000;
+@@ -221,7 +221,8 @@
+     Pfloat * pvad
+ )
+ {
+-    Word16 i, temp, norm_prod;
++    int i;
++    Word16 temp, norm_prod;
+     Word32 L_temp;
+ 
+     /* r[0] is always greater than zero (no need to test for r[0] == 0) */
+@@ -287,7 +288,7 @@
+ {
+     Word32 L_temp;
+     Word16 scale;
+-    Word16 i;
++    int i;
+ 
+     scale = add (9, scal_acf);
+ 
+@@ -379,7 +380,7 @@
+ )
+ {
+     Word16 acf[9], pp[9], kk[9], temp;
+-    Word16 i, k, m, n;
++    int i, k, m, n;
+ 
+     /*** Schur recursion with 16-bit arithmetic ***/
+ 
+@@ -477,7 +478,7 @@
+ {
+     Word32 L_coef[9], L_work[9];
+     Word16 temp;
+-    Word16 i, m;
++    int i, m;
+ 
+     /*** Initialization of the step-up recursion ***/
+ 
+@@ -535,7 +536,7 @@
+ )
+ {
+     Word32 L_work[9];
+-    Word16 i, k;
++    int i, k;
+ 
+     /*** Computation of the rav1[0..8] ***/
+ 
+@@ -592,7 +593,7 @@
+ {
+     Word32 L_dm, L_sump, L_temp;
+     Word16 stat, sav0[9], shift, divshift, temp;
+-    Word16 i;
++    int i;
+ 
+     /*** Re-normalize L_av0[0..8] ***/
+ 
+@@ -752,7 +753,7 @@
+     Word32 L_temp;
+     Word16 temp;
+     Pfloat p_temp;
+-    Word16 i;
++    int i;
+ 
+     comp = 0;                                           move16 (); 
+ 
+@@ -997,7 +998,7 @@
+ {
+     Word32 L_num, L_den, L_temp;
+     Word16 temp, prederr, a[3];
+-    Word16 i;
++    int i;
+ 
+     *tone = 0;                  move16 (); 
+ 
+@@ -1165,7 +1166,7 @@
+ )
+ {
+     Word16 minlag, maxlag, lagcount, temp;
+-    Word16 i;
++    int i;
+ 
+     /*** Run loop for the two halves in the frame ***/
+ 
+Only in src-new: vex_asm_basicop.h
+Only in src-new: vex_asm_simlib.c
+diff -wbBu --minimal src-orig/weight_a.c src-new/weight_a.c
+--- src-orig/weight_a.c	2003-11-13 12:01:12.000000000 +0100
++++ src-new/weight_a.c	2003-05-29 17:04:27.000000000 +0200
+@@ -22,7 +22,7 @@
+     Word16 a_exp[]      /* (o)     : Spectral expanded LPC coefficients   */
+ )
+ {
+-    Word16 i;
++    int i;
+ 
+     a_exp[0] = a[0];                                    move16 (); 
+     for (i = 1; i <= m; i++)

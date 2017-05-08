@@ -1,0 +1,112 @@
+#!/bin/sh
+
+
+# Startup
+# =======
+
+echo
+echo "------------------------------------------------------------------------"
+echo configure `pwd`
+echo
+
+
+# Defaults values
+# ===============
+
+srcdir=`dirname $0`
+destdir=`pwd`
+prefix=`pwd`
+
+recurse_dir=
+config= 
+libname=
+
+# Process args
+# ============
+
+all_arg=$*
+
+while :
+do
+
+# no args
+	case $# in
+	0)
+		break
+		;;
+	esac
+
+# get first arg and shuffle
+	option=$1
+	shift
+
+# make all options have two hyphens
+	orig_option=$option
+	case $option in
+		--*) ;;
+		-*) option=-$option ;;
+	esac
+
+# split the option to get its argument
+	case $option in
+	--*=*)
+		optarg=`echo $option | sed -e 's/^[^=]*=//'`
+		;;
+	esac
+
+# process the options
+	case $option in
+
+		--srcdir*)
+			srcdir=$optarg
+			;;
+
+		--destdir*)
+			destdir=$optarg
+			;;
+
+		--prefix*)
+			prefix=$optarg
+			;;
+
+		--config*)
+			config=$optarg
+			;;
+
+		--libname*)
+			libname=$optarg
+			;;
+
+		--build*)
+			build=$optarg
+			;;
+
+		--host*)
+			host=$optarg
+			;;
+	esac
+
+done
+
+
+# Process makefile.in
+# ===================
+
+echo "### Generated automatically from makefile.in by configure." \
+     > $destdir/makefile
+
+cat << EOF > sedscript  
+    s?@srcdir@?$srcdir?g
+    s?@prefix@?$prefix?g
+    s?@config@?$config?g
+    s?@libname@?$libname?g
+    s?@build@?$build?g
+    s?@host@?$host?g
+EOF
+sed -f sedscript $srcdir/makefile.in >> $destdir/makefile  
+rm -f sedscript  
+
+echo "$0 $all_arg" > $destdir/config.status
+rm -f $destdir/makefile.lib
+chmod +x $destdir/config.status
+
